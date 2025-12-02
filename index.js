@@ -1,9 +1,9 @@
-const express = require('express');
-const bodyParser = require('body-parser');
+const express = require("express");
+const cors = require("cors");
 
 const app = express();
-app.use(bodyParser.json());
-
+app.use(cors());
+app.use(express.json());
 // Simple paraphraser function (we will replace with AI later)
 function paraphrase(text, mode) {
     switch (mode) {
@@ -43,21 +43,19 @@ function paraphrase(text, mode) {
 // PARAPHRASER API
 // -------------------------
 app.post('/api/paraphrase', (req, res) => {
-    const { text, mode } = req.body;
+  const { text, mode } = req.body;
 
-    if (!text || !mode) {
-        return res.status(400).json({
-            error: "text and mode are required"
-        });
-    }
+  if (!text) {
+    return res.status(400).json({ error: "Text is required" });
+  }
 
-    const output = paraphrase(text, mode);
+  const output = paraphrase(text, mode);
 
-    res.json({
-        input: text,
-        mode: mode,
-        output: output
-    });
+  res.json({
+    input: text,
+    mode: mode,
+    output: output
+  });
 });
 
 // Start server
