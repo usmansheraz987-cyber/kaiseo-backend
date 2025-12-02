@@ -1,0 +1,7 @@
+POST http://localhost:3000/api/paraphrase
+Content-Type: application/json
+
+{
+  "text": "I dont know why this tool is not working very well",
+  "mode": "grammar-fix"
+}
