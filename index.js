@@ -10,7 +10,7 @@ app.use(express.json());
 
 // Routes
 const paraphraseRoute = require("./routes/paraphrase");
-const keywordDensityRoute = require("./routes/keywordDensity");
+const keywordDensityRoute = require("./routes/keyword-density.js");
 
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
