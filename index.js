@@ -62,7 +62,7 @@ app.post("/api/paraphrase", (req, res) => {
 // -----------------
 // KEYWORD DENSITY ROUTE
 // -----------------
-const keywordDensityRoute = require("./routes/keywordDensity");
+const keywordDensityRoute = require("./routes/keywordDensity.js");
 app.use("/api/keyword-density", keywordDensityRoute);
 
 // -----------------
