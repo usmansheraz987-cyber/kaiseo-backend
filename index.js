@@ -39,28 +39,36 @@ function paraphrase(text, mode) {
     }
 }
 
-// -------------------------
+// -----------------
 // PARAPHRASER API
-// -------------------------
-app.post('/api/paraphrase', (req, res) => {
+// -----------------
+app.post("/api/paraphrase", (req, res) => {
   const { text, mode } = req.body;
 
   if (!text) {
     return res.status(400).json({ error: "Text is required" });
   }
 
-  const output = paraphrase(text, mode);
+  // simple output
+  const output = text;
 
   res.json({
     input: text,
-    mode: mode,
-    output: output
+    mode,
+    output
   });
 });
-const keywordDensityRoute = require("./routes/keywordDensity.js");
+
+// -----------------
+// KEYWORD DENSITY ROUTE
+// -----------------
+const keywordDensityRoute = require("./routes/keywordDensity");
 app.use("/api/keyword-density", keywordDensityRoute);
-// Start server
+
+// -----------------
+// START SERVER
+// -----------------
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+  console.log("Server running on port " + PORT);
 });
