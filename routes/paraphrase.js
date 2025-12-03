@@ -1,52 +1,50 @@
 const express = require("express");
 const router = express.Router();
-const fetch = require("node-fetch");
+
+// SIMPLE NON-AI REWRITER (placeholder until we add AI)
+function rewrite(text, mode) {
+  if (!text) return "";
+
+  switch (mode) {
+    case "shorten":
+      return text.split(" ").slice(0, 8).join(" ") + "...";
+
+    case "expand":
+      return text + " This adds more explanation for clarity.";
+
+    case "humanize":
+      return "In simple words, " + text.toLowerCase();
+
+    case "grammar":
+      return text.replace(/\si\s/g, " I ");
+
+    default:
+      return text;
+  }
+}
 
 router.post("/", async (req, res) => {
   try {
-    const { text } = req.body;
+    const { text, mode = "default" } = req.body;
 
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ error: "Text is required" });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return res.status(500).json({ error: "Missing OpenAI API Key" });
-    }
-
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "Rewrite this text in a clearer, natural way." },
-          { role: "user", content: text }
-        ]
-      })
-    });
-
-    const data = await response.json();
-
-    if (!data || !data.choices || !data.choices[0]) {
-      return res.status(500).json({ 
-        error: "Failed to paraphrase", 
-        details: "AI returned no response" 
-      });
-    }
+    // Run simple placeholder rewrite
+    const output = rewrite(text, mode);
 
     res.json({
       input: text,
-      output: data.choices[0].message.content
+      mode,
+      output
     });
 
   } catch (err) {
-    console.error("Paraphrase error:", err);
-    res.status(500).json({ error: "Paraphraser crashed", details: err.message });
+    res.status(500).json({
+      error: "Failed to paraphrase",
+      details: err.message
+    });
   }
 });
 
