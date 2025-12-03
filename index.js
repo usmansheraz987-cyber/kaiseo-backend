@@ -57,7 +57,8 @@ app.post('/api/paraphrase', (req, res) => {
     output: output
   });
 });
-
+const keywordDensityRoute = require("./routes/keywordDensity.js");
+app.use("/api/keyword-density", keywordDensityRoute);
 // Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
