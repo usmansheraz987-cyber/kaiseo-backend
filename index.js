@@ -1,39 +1,23 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
 
-// middleware
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// ----------------------------------------------------
-// PARAPHRASER ROUTE (your original simple version)
-// ----------------------------------------------------
-app.post("/api/paraphrase", (req, res) => {
-  const { text } = req.body;
+// Routes
+const paraphraseRoute = require("./routes/paraphrase");
+const keywordDensityRoute = require("./routes/keywordDensity");
 
-  if (!text || text.trim().length === 0) {
-    return res.status(400).json({ error: "Text is required" });
-  }
-
-  // SIMPLE placeholder logic (we will replace with AI later)
-  const output = text;
-
-  res.json({
-    input: text,
-    output,
-  });
-});
-
-// ----------------------------------------------------
-// KEYWORD DENSITY ROUTE
-// ----------------------------------------------------
-const keywordDensityRoute = require("./routes/keyword-density.js");
+app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 
-// ----------------------------------------------------
-// START SERVER
-// ----------------------------------------------------
+// Server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
+
