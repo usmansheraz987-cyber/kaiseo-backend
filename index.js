@@ -15,6 +15,9 @@ const keywordDensityRoute = require("./routes/keyword-density.js");
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 
+// health check
+app.get("/", (req, res) => res.send({ ok: true }));
+
 // Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
