@@ -6,14 +6,18 @@ const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "250kb" }));
 
 // Routes
 const paraphraseRoute = require("./routes/paraphrase");
 const keywordDensityRoute = require("./routes/keyword-density.js");
 
+
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
+app.use("/api/seo-analyze", require('./routes/seo-analyzer'));
+
+
 
 // health check
 app.get("/", (req, res) => res.send({ ok: true }));
