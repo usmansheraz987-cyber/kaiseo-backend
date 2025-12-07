@@ -3,7 +3,7 @@ const router = express.Router();
 const extractHtml = require('../utils/extractHtml');
 const { analyzeTextFallback } = require('../utils/keywordExtractor');
 const { analyzeSemantics } = require('../utils/semanticEngine');
-const { fetchSERP } = require("../utils/serpScraper");
+const { fetchSERP } = require('../utils/serpScraper');
 const scoreSeo = require('../utils/seoScore');
 const readability = require('../utils/readability');
 const aiClient = require('../utils/aiClient'); // your existing ai client
@@ -43,12 +43,11 @@ const keywords = simpleKeywords; // keep backward compatibility in output
 // === COMPETITOR SERP ANALYSIS ===
 let serpCompetitors = [];
 try {
-  serpCompetitors = await fetchSERP(
-    extracted.title || extracted.ogTitle || "seo tools"
-  );
+  const query = extracted.title || extracted.ogTitle || "seo tools";
+  serpCompetitors = await fetchSERP(query);
 } catch (e) {
   serpCompetitors = [];
-}      
+}
 
       // ===== ADVANCED AI SEO INSIGHTS =====
 let aiInsights = {};
@@ -83,8 +82,7 @@ try {
   keyphrases: semantic.keyphrases,
   clusters: semantic.clusters
 },
-  competitors: serpCompetitors,   
-  ai: aiInsights,                 
+competitors: serpCompetitors,
 
 
         links: {
