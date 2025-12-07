@@ -33,22 +33,19 @@ router.post('/', async (req, res) => {
       const keywords = analyzeTextFallback(words, { topK: 10 });
       const score = scoreSeo(extracted, { readability: read, keywords });
 
-      // AI suggestions (non-blocking if AI fails — fallback to empty)
-      let aiSuggestions = [];
-      try {
-        const prompt = `Provide 5 actionable SEO improvement suggestions for this page. Output as a JSON array of short strings.\n\nTitle: ${extracted.title || ''}\nMeta: ${extracted.metaDescription || ''}\nTopKeywords: ${keywords.map(k=>k.keyword).join(', ')}\n\nContent snippet:\n${words.slice(0,800)}`;
-        const aiResp = await aiClient.generateSimple(prompt, { maxTokens: 200, temperature: 0.2 });
-        // Expect a newline separated or JSON array response — try to parse
-        try {
-          aiSuggestions = JSON.parse(aiResp);
-          if (!Array.isArray(aiSuggestions)) aiSuggestions = [String(aiResp).slice(0,400)];
-        } catch (e) {
-          aiSuggestions = String(aiResp).split(/\n+/).filter(Boolean).slice(0,5);
-        }
-      } catch (e) {
-        aiSuggestions = [];
-        console.warn('AI suggestions failed', e.message || e);
-      }
+      // ===== ADVANCED AI SEO INSIGHTS =====
+let aiInsights = {};
+try {
+  aiInsights = await aiClient.generateSeoInsights({
+    title: extracted.title,
+    metaDescription: extracted.metaDescription,
+    keywords,
+    wordText: words
+  });
+} catch (e) {
+  aiInsights = {};
+}
+
 
       const output = {
         mode: 'html',
@@ -109,19 +106,17 @@ router.post('/', async (req, res) => {
       wordText: plain
     }, { readability: read, keywords });
 
-    let aiSuggestions = [];
-    try {
-      const prompt = `Provide 5 quick SEO improvement suggestions for the following content. Output as JSON array.\n\nContent:\n${plain.slice(0,1000)}`;
-      const aiResp = await aiClient.generateSimple(prompt, { maxTokens: 200, temperature: 0.2 });
-      try {
-        aiSuggestions = JSON.parse(aiResp);
-        if (!Array.isArray(aiSuggestions)) aiSuggestions = [String(aiResp).slice(0,400)];
-      } catch (e) {
-        aiSuggestions = String(aiResp).split(/\n+/).filter(Boolean).slice(0,5);
-      }
-    } catch (e) {
-      aiSuggestions = [];
-    }
+let aiInsights = {};
+try {
+  aiInsights = await aiClient.generateSeoInsights({
+    title: body.title || null,
+    metaDescription: body.metaDescription || null,
+    keywords,
+    wordText: plain
+  });
+} catch (e) {
+  aiInsights = {};
+}
 
     const out = {
       mode: 'text',

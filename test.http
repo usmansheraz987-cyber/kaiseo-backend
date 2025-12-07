@@ -5,3 +5,20 @@ Content-Type: application/json
   "text": "I dont know why this tool is not working very well",
   "mode": "grammar-fix"
 }
+### HTML mode
+POST http://localhost:3000/seo-analyze
+Content-Type: application/json
+
+{
+  "html": "<html><head><title>Test Page</title><meta name=\"description\" content=\"Short desc.\"></head><body><h1>Test</h1><p>This is a sample article about SEO tools.</p><img src=\"/img.jpg\"></body></html>",
+  "url": "https://example.com/test"
+}
+
+### Text mode
+POST http://localhost:3000/seo-analyze
+Content-Type: application/json
+
+{
+  "text": "This is a short test article about SEO tools. It mentions keywords like seo, tools, analyzer. Write more content here..."
+}
+
