@@ -1,39 +1,32 @@
 // utils/serpScraper.js
-const axios = require("axios");
-const cheerio = require("cheerio");
+const SerpApi = require('serpapi');
 
 async function fetchSERP(query) {
   try {
-    const q = encodeURIComponent(query);
-    const url = `https://www.google.com/search?q=${q}&hl=en`;
+    if (!query || query.length < 2) return [];
 
-    const res = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
-      }
-    });
+    const client = new SerpApi.GoogleSearch({ api_key: process.env.SERPAPI_KEY });
 
-    const $ = cheerio.load(res.data);
-    const results = [];
+    const params = {
+      q: query,
+      num: 10,
+      hl: "en",
+      gl: "us"
+    };
 
-    $(".tF2Cxc").each((_, el) => {
-      const title = $(el).find("h3").text().trim();
-      const link = $(el).find("a").attr("href");
-      const snippet = $(el).find(".VwiC3b").text().trim();
+    const res = await client.json(params);
+    const results = res.organic_results || [];
 
-      if (title && link) {
-        results.push({
-          title,
-          link,
-          snippet
-        });
-      }
-    });
+    return results.slice(0, 5).map(r => ({
+      title: r.title || "",
+      link: r.link || "",
+      snippet: r.snippet || "",
+      domain: r.displayed_link || r.domain || "",
+      position: r.position || 0
+    }));
 
-    return results.slice(0, 5); // top 5 competitors
   } catch (err) {
-    console.error("SERP Error:", err);
+    console.error("SERP SCRAPER ERROR:", err.message || err);
     return [];
   }
 }
