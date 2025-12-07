@@ -1,44 +1,49 @@
-// utils/aiClient.js
 const OpenAI = require("openai");
 
 const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "" // Render / system env must contain this
+  apiKey: process.env.OPENAI_API_KEY || ""
 });
 
+// === CALL SIMPLE OPENAI TEXT ===
 async function callOpenAI(prompt) {
-  // Use Responses API
   const res = await client.responses.create({
-    model: "gpt-4o-mini", // change model if needed / available on your account
+    model: "gpt-4o-mini",
     input: prompt,
     max_output_tokens: 4000
   });
 
-  // Responses API nested shape: pick the text
-  // defensive access:
   try {
-    const text = (res.output && res.output[0] && res.output[0].content && res.output[0].content[0] && res.output[0].content[0].text)
-      || (res.output_text) // older responses
-      || JSON.stringify(res);
+    const text =
+      (res.output &&
+        res.output[0] &&
+        res.output[0].content &&
+        res.output[0].content[0] &&
+        res.output[0].content[0].text) ||
+      res.output_text ||
+      JSON.stringify(res);
+
     return text;
   } catch (err) {
     return null;
   }
 }
 
-// === Advanced SEO Insight Generator ===
-async function generateSeoInsights({ title, metaDescription, keywords, wordText }) {
+// === ADVANCED SEO + COMPETITOR INSIGHTS ===
+async function generateSeoInsights({ title, metaDescription, keywords, wordText, competitors }) {
   try {
     const prompt = `
-You are an expert SEO consultant. Analyze the following webpage content and provide a structured SEO improvement report.
-Return ONLY valid JSON. No explanations.
+You are an advanced SEO consultant. Analyze the webpage content below
+AND the competitor SERP data. Return ONLY VALID JSON.
 
 DATA:
 Title: ${title || "null"}
-Meta Description: ${metaDescription || "null"}
+MetaDescription: ${metaDescription || "null"}
 Top Keywords: ${JSON.stringify(keywords || [])}
-Content Snippet: ${wordText ? wordText.slice(0, 1200) : ""}
+Competitors: ${JSON.stringify(competitors || [])}
+Content Sample: ${wordText ? wordText.slice(0, 1200) : ""}
 
-JSON FORMAT:
+Your JSON response must follow this format:
+
 {
   "rewrittenTitle": "",
   "rewrittenMeta": "",
@@ -47,15 +52,21 @@ JSON FORMAT:
   "contentGaps": [],
   "semanticKeywords": [],
   "internalLinkSuggestions": [],
+  "competitorInsights": {
+        "averageLength": 0,
+        "commonKeywords": [],
+        "missingOpportunities": [],
+        "top3Takeaways": []
+  },
   "toneAndReadabilityAdvice": "",
   "priorityFixes": []
 }
-    `;
+`;
 
     const res = await client.responses.create({
       model: "gpt-4o-mini",
       input: prompt,
-      max_output_tokens: 600
+      max_output_tokens: 900
     });
 
     let raw = res.output_text || "";
@@ -66,15 +77,13 @@ JSON FORMAT:
       const match = raw.match(/\{[\s\S]*\}/);
       return match ? JSON.parse(match[0]) : {};
     }
-  } catch (error) {
-    console.error("SEO Insight Error:", error);
+  } catch (err) {
+    console.error("AI Insight Error:", err);
     return {};
   }
 }
 
-
-module.exports = { 
+module.exports = {
   callOpenAI,
   generateSeoInsights
 };
-

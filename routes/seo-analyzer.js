@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const extractHtml = require('../utils/extractHtml');
 const { analyzeTextFallback } = require('../utils/keywordExtractor');
+const { analyzeSemantics } = require('../utils/semanticEngine');
+const { fetchSERP } = require("../utils/serpScraper");
 const scoreSeo = require('../utils/seoScore');
 const readability = require('../utils/readability');
 const aiClient = require('../utils/aiClient'); // your existing ai client
@@ -30,8 +32,23 @@ router.post('/', async (req, res) => {
       // Core metrics
       const words = extracted.wordText;
       const read = readability.computeFlesch(words);
-      const keywords = analyzeTextFallback(words, { topK: 10 });
+      // keep old simple keywords for density if you want
+const simpleKeywords = analyzeTextFallback(words, { topK: 10 });
+
+// semantic analysis (phrases, clusters)
+const semantic = analyzeSemantics(words, { topK: 12 });
+const keywords = simpleKeywords; // keep backward compatibility in output
+
       const score = scoreSeo(extracted, { readability: read, keywords });
+// === COMPETITOR SERP ANALYSIS ===
+let serpCompetitors = [];
+try {
+  serpCompetitors = await fetchSERP(
+    extracted.title || extracted.ogTitle || "seo tools"
+  );
+} catch (e) {
+  serpCompetitors = [];
+}      
 
       // ===== ADVANCED AI SEO INSIGHTS =====
 let aiInsights = {};
@@ -40,12 +57,12 @@ try {
     title: extracted.title,
     metaDescription: extracted.metaDescription,
     keywords,
-    wordText: words
+    wordText: words,
+    competitors: serpCompetitors
   });
 } catch (e) {
   aiInsights = {};
 }
-
 
       const output = {
         mode: 'html',
@@ -61,6 +78,15 @@ try {
         headings: extracted.headings,
         readability: read,
         keywords,
+        semantic: {
+  semanticKeywords: semantic.semanticKeywords,
+  keyphrases: semantic.keyphrases,
+  clusters: semantic.clusters
+},
+  competitors: serpCompetitors,   
+  ai: aiInsights,                 
+
+
         links: {
           internal: extracted.internalLinks.length,
           external: extracted.externalLinks.length,
@@ -94,7 +120,13 @@ try {
     if (plain.length > maxSize) return res.status(400).json({ error: 'Text too large' });
 
     const read = readability.computeFlesch(plain);
-    const keywords = analyzeTextFallback(plain, { topK: 10 });
+    // keep old simple keywords for density if you want
+const simpleKeywords = analyzeTextFallback(plain, { topK: 10 });
+
+// semantic analysis (phrases, clusters)
+const semantic = analyzeSemantics(plain, { topK: 12 });
+const keywords = simpleKeywords; // keep backward compatibility in output
+
     // minimal structure for text mode
     const score = scoreSeo({
       // minimal shape expected by scoreSeo
@@ -123,6 +155,12 @@ try {
       score,
       readability: read,
       keywords,
+      semantic: {
+  semanticKeywords: semantic.semanticKeywords,
+  keyphrases: semantic.keyphrases,
+  clusters: semantic.clusters
+},
+
       fixes: { logic: score.actions || [], ai: aiInsights }
     };
 
