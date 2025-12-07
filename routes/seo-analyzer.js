@@ -80,7 +80,7 @@ try {
         },
         fixes: {
           logic: score.actions || [],
-          ai: aiSuggestions
+          ai: aiInsights
         }
       };
 
@@ -123,7 +123,7 @@ try {
       score,
       readability: read,
       keywords,
-      fixes: { logic: score.actions || [], ai: aiSuggestions }
+      fixes: { logic: score.actions || [], ai: aiInsights }
     };
 
     cache.set(rawKey, out);
