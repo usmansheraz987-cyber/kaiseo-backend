@@ -1,70 +1,42 @@
 // utils/serpScraper.js
-// Lightweight SerpAPI wrapper that returns top organic results.
-// Requires: npm install axios
-const axios = require("axios");
-const url = require("url");
+const fetch = require('node-fetch');
 
-const SERPAPI_KEY = process.env.SERPAPI_KEY || "";
-
-if (!SERPAPI_KEY) {
-  // keep module loadable; we'll throw inside function if key missing
-}
-
-function domainFromUrl(u) {
-  try {
-    return (new URL(u)).hostname.replace(/^www\./, "");
-  } catch (e) {
-    return null;
-  }
-}
+const SERPAPI_KEY = process.env.SERPAPI_KEY || '';
 
 /**
- * fetchSERP(query) -> returns array of organic results:
- * [{ position, title, snippet, link, domain }, ...]
+ * fetchSERP(query) -> returns array of { position, title, link, snippet, domain }
+ * - uses SerpAPI (Google) format. If SERPAPI_KEY not set, returns [].
  */
-async function fetchSERP(query, opts = {}) {
-  if (!SERPAPI_KEY) {
-    throw new Error("SERPAPI_KEY env var not set. See README / instructions.");
-  }
-  const params = {
-    q: query,
-    api_key: SERPAPI_KEY,
-    engine: "google",
-    num: opts.num || 10,        // top N
-    hl: opts.hl || "en",
-    gl: opts.gl || "us"
-  };
-
-  const endpoint = "https://serpapi.com/search.json";
+async function fetchSERP(query = '') {
+  if (!query || !SERPAPI_KEY) return [];
 
   try {
-    const res = await axios.get(endpoint, { params, timeout: 15_000 });
-    const data = res.data || {};
+    const params = new URLSearchParams({
+      q: query,
+      engine: 'google',
+      api_key: SERPAPI_KEY,
+      num: '10',
+      // location: 'United States' // optional
+    });
 
-    // SerpAPI returns 'organic_results' usually
-    const org = data.organic_results || data.organic || [];
+    const url = `https://serpapi.com/search.json?${params.toString()}`;
+    const r = await fetch(url, { timeout: 20000 });
+    if (!r.ok) return [];
 
-    const results = (Array.isArray(org) ? org : [])
-      .filter(r => r.link || r.url || r.position)
-      .slice(0, params.num)
-      .map((r, idx) => {
-        const link = r.link || r.url || r.position?.link || null;
-        const title = r.title || r.rich_snippet?.top?.string || r.rich_snippet?.top?.text || "";
-        const snippet = r.snippet || r.rich_snippet?.top?.snippet || r.rich_snippet?.top?.detected_extensions || "";
-        return {
-          position: r.position || idx + 1,
-          title: title || "",
-          snippet: snippet || (r.snippet || ""),
-          link: link || "",
-          domain: link ? domainFromUrl(link) : (r.displayed_link || r.domain || "")
-        };
-      });
+    const data = await r.json();
 
-    return results;
+    // SerpAPI result parsing - adapt if your provider has different shape
+    const serp = (data.organic_results || data.organic || []).slice(0, 10).map((item, idx) => ({
+      position: item.position || idx + 1,
+      title: item.title || item.rich_snippet?.top?.title || '',
+      link: item.link || item.url || item.rich_snippet?.top?.link || '',
+      snippet: item.snippet || item.rich_snippet?.top?.snippet || '',
+      domain: (item.link || '').replace(/^https?:\/\//, '').split('/')[0] || ''
+    }));
+
+    return serp;
   } catch (err) {
-    // surface a friendly error
-    // do not leak API key or raw network error in production
-    console.error("fetchSERP error:", (err && err.message) || err);
+    console.error('fetchSERP error', err && err.message ? err.message : err);
     return [];
   }
 }

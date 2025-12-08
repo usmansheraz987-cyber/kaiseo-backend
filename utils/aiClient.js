@@ -1,72 +1,26 @@
-// utils/aiClient.js
-const OpenAI = require("openai");
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || ""
-});
-
-// simple helper to extract text safely
-function safeText(x) {
-  if (!x) return "";
-  if (typeof x === "string") return x;
-  try { return JSON.stringify(x); } catch (e) { return String(x); }
-}
-
-/**
- * callOpenAI - general wrapper (kept for compatibility)
- */
-async function callOpenAI(prompt) {
-  const res = await client.responses.create({
-    model: "gpt-4o-mini",
-    input: prompt,
-    max_output_tokens: 4000
-  });
-
+// utils/aiClient.js (partial - replace generateSeoInsights implementation)
+async function generateSeoInsights({ title, metaDescription, keywords, wordText, competitors = [] }) {
   try {
-    const text = (res.output && res.output[0] && res.output[0].content && res.output[0].content[0] && res.output[0].content[0].text)
-      || (res.output_text)
-      || JSON.stringify(res);
-    return text;
-  } catch (err) {
-    return null;
-  }
-}
-
-/**
- * generateSeoInsights
- * Accepts: { title, metaDescription, keywords, wordText, competitors }
- * competitors - array of objects { url, title, snippet, domain, position } or just URLs.
- *
- * Returns parsed JSON object (or empty object on error).
- */
-async function generateSeoInsights({ title, metaDescription, keywords = [], wordText = "", competitors = [] }) {
-  try {
-    // build competitor summary for prompt
-    let compSummary = "";
-    if (Array.isArray(competitors) && competitors.length) {
-      compSummary = "\nCOMPETITORS:\n";
-      competitors.forEach((c, i) => {
-        if (typeof c === "string") {
-          compSummary += `${i+1}. URL: ${c}\n`;
-        } else {
-          compSummary += `${i+1}. ${c.title || ""} ${c.domain ? `(${c.domain})` : ""}\n   URL: ${c.link || c.url || ""}\n   Snippet: ${c.snippet || ""}\n`;
-        }
-      });
-    } else {
-      compSummary = "\nCOMPETITORS: none provided.\n";
-    }
+    // Build a compact competitor summary to include in prompt
+    const compSummary = (competitors || []).slice(0, 6).map((c, i) => {
+      // competitor object expected: { position, title, link, snippet, domain }
+      return `${i+1}. ${c.title || c.domain || c.link} — ${c.domain || ''} — ${c.link || ''} — snippet: ${c.snippet || ''}`;
+    }).join('\n') || 'None';
 
     const prompt = `
 You are an expert SEO consultant. Analyze the following webpage content and provide a structured SEO improvement report.
-Return ONLY valid JSON (no extra commentary or code blocks).
+Include competitor-aware suggestions based on the COMPETITORS list.
 
 DATA:
-Title: ${safeText(title) || "null"}
-Meta Description: ${safeText(metaDescription) || "null"}
+Title: ${title || "null"}
+Meta Description: ${metaDescription || "null"}
 Top Keywords: ${JSON.stringify(keywords || [])}
-Content Snippet (first 1200 chars): ${safeText(wordText).slice(0,1200)}
+Content Snippet: ${wordText ? wordText.slice(0, 1400) : ""}
 
+COMPETITORS:
 ${compSummary}
+
+Output ONLY valid JSON matching the schema below.
 
 JSON FORMAT:
 {
@@ -77,35 +31,34 @@ JSON FORMAT:
   "contentGaps": [],
   "semanticKeywords": [],
   "internalLinkSuggestions": [],
+  "competitorInsights": {
+    "averageLength": 0,
+    "commonKeywords": [],
+    "missingOpportunities": [],
+    "topTakeaways": []
+  },
   "toneAndReadabilityAdvice": "",
-  "priorityFixes": [],
-  "competitorInsights": { "averageLength": 0, "commonKeywords": [], "missingOpportunities": [], "topTakeaways": [] }
+  "priorityFixes": []
 }
     `;
 
     const res = await client.responses.create({
       model: "gpt-4o-mini",
       input: prompt,
-      max_output_tokens: 900
+      max_output_tokens: 800
     });
 
     let raw = res.output_text || "";
-
-    // Defensive parse: try direct parse, then regex object extraction
+    // defensive parsing
     try {
       return JSON.parse(raw);
     } catch (err) {
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) {
-        try { return JSON.parse(match[0]); } catch (err2) { /* fall through */ }
-      }
-      // fallback: return wrapper with raw text
-      return { error: "ai_parse_failed", raw: raw.slice(0, 4000) };
+      const match = raw.match(/\{[\s\S]*\}$/);
+      if (match) return JSON.parse(match[0]);
+      return {};
     }
   } catch (error) {
-    console.error("generateSeoInsights error:", error && error.message ? error.message : error);
+    console.error("SEO Insight Error:", error);
     return {};
   }
 }
-
-module.exports = { callOpenAI, generateSeoInsights };
