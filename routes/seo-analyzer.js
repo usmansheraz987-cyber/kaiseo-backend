@@ -1,28 +1,28 @@
+// routes/seo-analyzer.js
 const express = require('express');
 const router = express.Router();
 const extractHtml = require('../utils/extractHtml');
 const { analyzeTextFallback } = require('../utils/keywordExtractor');
 const { analyzeSemantics } = require('../utils/semanticEngine');
-const { fetchSERP } = require('../utils/serpScraper');
+const { fetchSERP } = require('../utils/serpScraper'); // new
 const technicalAudit = require('../utils/technicalAudit');
 const scoreSeo = require('../utils/seoScore');
 const readability = require('../utils/readability');
-const aiClient = require('../utils/aiClient'); // your existing ai client
+const aiClient = require('../utils/aiClient'); // patched
 const NodeCache = require('node-cache');
 
+const cache = new NodeCache({ stdTTL: 60 * 5 }); // 5 minutes cache
 
-const cache = new NodeCache({ stdTTL: 60 * 5 }); // 5 min cache for repeated URLs/content
-
-// Optional rate limiting may already be global in index.js
 router.post('/', async (req, res) => {
   try {
     const body = req.body || {};
     const html = body.html;
     const text = body.text;
     const url = body.url;
-    const maxSize = 200_000; // max characters allowed
+    const maxSize = 200_000;
+    const frontendCompetitor = body.competitor || body.competitors || null; // optional single url or array
 
-    const rawKey = html ? `html:${html.slice(0,100)}` : `text:${(text||'').slice(0,100)}`;
+    const rawKey = html ? `html:${(html||"").slice(0,100)}` : `text:${(text||"").slice(0,100)}`;
     const cached = cache.get(rawKey);
     if (cached) return res.json({ cached: true, ...cached });
 
@@ -31,57 +31,60 @@ router.post('/', async (req, res) => {
       if (html.length > maxSize) return res.status(400).json({ error: 'HTML too large' });
 
       const extracted = extractHtml(html, { url });
-      // Core metrics
-      const words = extracted.wordText;
+      const words = extracted.wordText || "";
       const read = readability.computeFlesch(words);
-      // keep old simple keywords for density if you want
-const simpleKeywords = analyzeTextFallback(words, { topK: 10 });
 
-// semantic analysis (phrases, clusters)
-const semantic = analyzeSemantics(words, { topK: 12 });
-const keywords = simpleKeywords; // keep backward compatibility in output
+      // old keyword fallback
+      const simpleKeywords = analyzeTextFallback(words, { topK: 10 });
 
-    const score = scoreSeo({
-  title: extracted.title || null,
-  metaDescription: extracted.metaDescription || null,
-  headings: extracted.headings || [],
-  images: extracted.images || [],
-  links: {
-    internal: extracted.internalLinks || [],
-    external: extracted.externalLinks || []
-  },
-  wordText: words,
-  readability: read,
-  keywords,                   // your simpleKeywords
-  semantic,                   // semantic results
-  technical: tech || {},      // new technical audit
-  performance: body.performance || {},
-  competitors: serpCompetitors || []
-});
+      // semantic analysis
+      const semantic = analyzeSemantics(words, { topK: 12 });
+      const keywords = simpleKeywords; // keep backward compatibility
 
-// === COMPETITOR SERP ANALYSIS ===
-let serpCompetitors = [];
-try {
-  const query = extracted.title || extracted.ogTitle || "seo tools";
-  serpCompetitors = await fetchSERP(query);
-} catch (e) {
-  serpCompetitors = [];
-}
+      // score
+      const score = scoreSeo(extracted, { readability: read, keywords });
 
-      // ===== ADVANCED AI SEO INSIGHTS =====
-let aiInsights = {};
-try {
-  aiInsights = await aiClient.generateSeoInsights({
-    title: extracted.title,
-    metaDescription: extracted.metaDescription,
-    keywords,
-    wordText: words,
-    competitors: serpCompetitors
-  });
-} catch (e) {
-  aiInsights = {};
-}
-const tech = technicalAudit(extracted, html);
+      // optional competitor logic:
+      let serpCompetitors = [];
+      try {
+        if (frontendCompetitor) {
+          // if frontend passed a single URL string, wrap it into a minimal competitor object
+          if (typeof frontendCompetitor === "string") {
+            serpCompetitors = [{ link: frontendCompetitor, url: frontendCompetitor }];
+          } else if (Array.isArray(frontendCompetitor)) {
+            serpCompetitors = frontendCompetitor.map(u => (typeof u === "string" ? { link: u, url: u } : u));
+          } else if (frontendCompetitor.url || frontendCompetitor.link) {
+            serpCompetitors = [frontendCompetitor];
+          } else {
+            serpCompetitors = []; // ignore unknown shapes
+          }
+        } else {
+          // automatic SERP lookup using extracted title or ogTitle, fallback to "seo tools"
+          const query = extracted.title || extracted.ogTitle || "seo tools";
+          serpCompetitors = await fetchSERP(query);
+        }
+      } catch (e) {
+        console.warn("SERP competitors fetch failed:", e && e.message ? e.message : e);
+        serpCompetitors = [];
+      }
+
+      // AI insights (give it competitors array)
+      let aiInsights = {};
+      try {
+        aiInsights = await aiClient.generateSeoInsights({
+          title: extracted.title || null,
+          metaDescription: extracted.metaDescription || null,
+          keywords,
+          wordText: words,
+          competitors: serpCompetitors
+        });
+      } catch (e) {
+        aiInsights = {};
+      }
+
+      // technical audit (existing helper)
+      const tech = technicalAudit(extracted, html);
+
       const output = {
         mode: 'html',
         url: extracted.canonical || url || null,
@@ -91,69 +94,59 @@ const tech = technicalAudit(extracted, html);
           titleLength: extracted.title ? extracted.title.length : 0,
           metaDescription: extracted.metaDescription || null,
           metaLength: extracted.metaDescription ? extracted.metaDescription.length : 0,
-          ogTitle: extracted.ogTitle || null,
+          ogTitle: extracted.ogTitle || null
         },
-        headings: extracted.headings,
+        headings: extracted.headings || [],
         readability: read,
         keywords,
         semantic: {
-  semanticKeywords: semantic.semanticKeywords,
-  keyphrases: semantic.keyphrases,
-  clusters: semantic.clusters
-},
-technical: tech,
-competitors: serpCompetitors,
-
-score: score.score,
-scoreBreakdown: score.weightBreakdown,
-fixes: score.actions,
-details: score.details,
-
-
-
+          semanticKeywords: semantic.semanticKeywords || [],
+          keyphrases: semantic.keyphrases || [],
+          clusters: semantic.clusters || []
+        },
+        technical: tech || {},
+        competitors: serpCompetitors || [],
+        ai: aiInsights || {},
         links: {
-          internal: extracted.internalLinks.length,
-          external: extracted.externalLinks.length,
-          internalList: extracted.internalLinks.slice(0,50),
-          externalList: extracted.externalLinks.slice(0,50),
+          internal: Array.isArray(extracted.internalLinks) ? extracted.internalLinks.length : 0,
+          external: Array.isArray(extracted.externalLinks) ? extracted.externalLinks.length : 0,
+          internalList: (extracted.internalLinks || []).slice(0,50),
+          externalList: (extracted.externalLinks || []).slice(0,50)
         },
-        images: {
-          total: extracted.images.length,
-          missingAlt: extracted.images.filter(i => !i.alt).length,
-          images: extracted.images.slice(0,50),
-        },
-        technical: {
-          canonical: !!extracted.canonical,
-          robots: extracted.robots || null,
-          schema: !!extracted.schema,
-          og: !!(extracted.ogTitle || extracted.ogDescription),
-        },
-        fixes: {
-          logic: score.actions || [],
-          ai: aiInsights
-        }
+        fixes: { logic: score.actions || [], ai: aiInsights }
       };
 
       cache.set(rawKey, output);
       return res.json(output);
     }
 
-    // FALLBACK -> text mode
-    const plain = text || '';
+    // TEXT mode fallback
+    const plain = text || "";
     if (!plain || plain.trim().length === 0) return res.status(400).json({ error: 'Provide html or text' });
     if (plain.length > maxSize) return res.status(400).json({ error: 'Text too large' });
 
     const read = readability.computeFlesch(plain);
-    // keep old simple keywords for density if you want
-const simpleKeywords = analyzeTextFallback(plain, { topK: 10 });
+    const simpleKeywords = analyzeTextFallback(plain, { topK: 10 });
+    const semantic = analyzeSemantics(plain, { topK: 12 });
+    const keywords = simpleKeywords;
 
-// semantic analysis (phrases, clusters)
-const semantic = analyzeSemantics(plain, { topK: 12 });
-const keywords = simpleKeywords; // keep backward compatibility in output
+    // optional competitor logic for text mode (same as above)
+    let serpCompetitors = [];
+    try {
+      if (frontendCompetitor) {
+        if (typeof frontendCompetitor === "string") serpCompetitors = [{ link: frontendCompetitor, url: frontendCompetitor }];
+        else if (Array.isArray(frontendCompetitor)) serpCompetitors = frontendCompetitor.map(u => (typeof u === "string" ? { link: u, url: u } : u));
+        else serpCompetitors = [];
+      } else {
+        // we can base the query on first sentence or keywords
+        const query = (plain.split("\n")[0] || "").slice(0, 80) || "seo tools";
+        serpCompetitors = await fetchSERP(query);
+      }
+    } catch (e) {
+      serpCompetitors = [];
+    }
 
-    // minimal structure for text mode
     const score = scoreSeo({
-      // minimal shape expected by scoreSeo
       title: body.title || null,
       metaDescription: body.metaDescription || null,
       headings: [],
@@ -162,17 +155,18 @@ const keywords = simpleKeywords; // keep backward compatibility in output
       wordText: plain
     }, { readability: read, keywords });
 
-let aiInsights = {};
-try {
-  aiInsights = await aiClient.generateSeoInsights({
-    title: body.title || null,
-    metaDescription: body.metaDescription || null,
-    keywords,
-    wordText: plain
-  });
-} catch (e) {
-  aiInsights = {};
-}
+    let aiInsights = {};
+    try {
+      aiInsights = await aiClient.generateSeoInsights({
+        title: body.title || null,
+        metaDescription: body.metaDescription || null,
+        keywords,
+        wordText: plain,
+        competitors: serpCompetitors
+      });
+    } catch (e) {
+      aiInsights = {};
+    }
 
     const out = {
       mode: 'text',
@@ -180,11 +174,12 @@ try {
       readability: read,
       keywords,
       semantic: {
-  semanticKeywords: semantic.semanticKeywords,
-  keyphrases: semantic.keyphrases,
-  clusters: semantic.clusters
-},
-
+        semanticKeywords: semantic.semanticKeywords || [],
+        keyphrases: semantic.keyphrases || [],
+        clusters: semantic.clusters || []
+      },
+      competitors: serpCompetitors || [],
+      ai: aiInsights || {},
       fixes: { logic: score.actions || [], ai: aiInsights }
     };
 
@@ -192,8 +187,8 @@ try {
     return res.json(out);
 
   } catch (err) {
-    console.error('seo-analyze error:', err.message || err);
-    return res.status(500).json({ error: 'Internal server error' });
+    console.error("analysis error:", err && err.stack ? err.stack : err);
+    return res.status(500).json({ error: 'internal_error', details: (err && err.message) || String(err) });
   }
 });
 
