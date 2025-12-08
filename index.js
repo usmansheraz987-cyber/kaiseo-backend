@@ -11,7 +11,8 @@ app.use(express.json({ limit: "250kb" }));
 // Routes
 const paraphraseRoute = require("./routes/paraphrase");
 const keywordDensityRoute = require("./routes/keyword-density.js");
-const aiDetector = require("./routes/aiDetector");
+const aiDetector = require("./routes/ai-detector");
+
 
 
 app.use("/api/paraphrase", paraphraseRoute);
