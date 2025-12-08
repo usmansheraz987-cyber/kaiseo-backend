@@ -4,10 +4,12 @@ const extractHtml = require('../utils/extractHtml');
 const { analyzeTextFallback } = require('../utils/keywordExtractor');
 const { analyzeSemantics } = require('../utils/semanticEngine');
 const { fetchSERP } = require('../utils/serpScraper');
+const technicalAudit = require('../utils/technicalAudit');
 const scoreSeo = require('../utils/seoScore');
 const readability = require('../utils/readability');
 const aiClient = require('../utils/aiClient'); // your existing ai client
 const NodeCache = require('node-cache');
+
 
 const cache = new NodeCache({ stdTTL: 60 * 5 }); // 5 min cache for repeated URLs/content
 
