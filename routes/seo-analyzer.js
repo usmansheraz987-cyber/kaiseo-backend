@@ -41,7 +41,24 @@ const simpleKeywords = analyzeTextFallback(words, { topK: 10 });
 const semantic = analyzeSemantics(words, { topK: 12 });
 const keywords = simpleKeywords; // keep backward compatibility in output
 
-      const score = scoreSeo(extracted, { readability: read, keywords });
+    const score = scoreSeo({
+  title: extracted.title || null,
+  metaDescription: extracted.metaDescription || null,
+  headings: extracted.headings || [],
+  images: extracted.images || [],
+  links: {
+    internal: extracted.internalLinks || [],
+    external: extracted.externalLinks || []
+  },
+  wordText: words,
+  readability: read,
+  keywords,                   // your simpleKeywords
+  semantic,                   // semantic results
+  technical: tech || {},      // new technical audit
+  performance: body.performance || {},
+  competitors: serpCompetitors || []
+});
+
 // === COMPETITOR SERP ANALYSIS ===
 let serpCompetitors = [];
 try {
@@ -64,7 +81,7 @@ try {
 } catch (e) {
   aiInsights = {};
 }
-
+const tech = technicalAudit(extracted, html);
       const output = {
         mode: 'html',
         url: extracted.canonical || url || null,
@@ -84,7 +101,14 @@ try {
   keyphrases: semantic.keyphrases,
   clusters: semantic.clusters
 },
+technical: tech,
 competitors: serpCompetitors,
+
+score: score.score,
+scoreBreakdown: score.weightBreakdown,
+fixes: score.actions,
+details: score.details,
+
 
 
         links: {
