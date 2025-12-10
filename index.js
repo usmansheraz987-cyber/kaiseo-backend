@@ -15,16 +15,12 @@ const aiDetector = require("./routes/ai-detector");
 const readabilityRoute = require("./routes/readability");
 const plagiarismRoute = require("./routes/plagiarism");
 
-
-
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 app.use("/api/seo-analyze", require('./routes/seo-analyzer'));
 app.use("/api/ai-detect", aiDetector);
 app.use("/api/readability", readabilityRoute);
 app.use("/api/plagiarism", plagiarismRoute);
-
-
 
 // health check
 app.get("/", (req, res) => res.send({ ok: true }));
