@@ -12,6 +12,7 @@ app.use(express.json({ limit: "250kb" }));
 const paraphraseRoute = require("./routes/paraphrase");
 const keywordDensityRoute = require("./routes/keyword-density.js");
 const aiDetector = require("./routes/ai-detector");
+const readabilityRoute = require("./routes/readability");
 
 
 
@@ -19,6 +20,7 @@ app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 app.use("/api/seo-analyze", require('./routes/seo-analyzer'));
 app.use("/api/ai-detect", aiDetector);
+app.use("/api/readability", readabilityRoute);
 
 
 
