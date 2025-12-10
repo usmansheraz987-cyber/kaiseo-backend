@@ -1,27 +1,44 @@
-// Simple Flesch reading ease calculation
+module.exports = {
+  analyze(text) {
+    const sentences = text.split(/[.!?]+/).filter(Boolean);
+    const words = text.split(/\s+/).filter(Boolean);
+    const syllables = words.reduce((acc, w) => acc + countSyllables(w), 0);
+
+    const sentenceCount = sentences.length || 1;
+    const wordCount = words.length || 1;
+
+    const flesch =
+      206.835 -
+      1.015 * (wordCount / sentenceCount) -
+      84.6 * (syllables / wordCount);
+
+    const grade =
+      0.39 * (wordCount / sentenceCount) +
+      11.8 * (syllables / wordCount) -
+      15.59;
+
+    return {
+      score: Number(flesch.toFixed(2)),
+      gradeLevel: Number(grade.toFixed(2)),
+      sentences: sentenceCount,
+      words: wordCount,
+      syllables,
+      difficulty:
+        flesch >= 90 ? "Very Easy" :
+        flesch >= 80 ? "Easy" :
+        flesch >= 70 ? "Fairly Easy" :
+        flesch >= 60 ? "Standard" :
+        flesch >= 50 ? "Fairly Difficult" :
+        flesch >= 30 ? "Difficult" :
+        "Very Difficult"
+    };
+  }
+};
+
 function countSyllables(word) {
   word = word.toLowerCase();
   if (word.length <= 3) return 1;
-  const syl = word
-    .replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '')
-    .replace(/^y/, '')
-    .match(/[aeiouy]{1,2}/g);
-  return syl ? syl.length : 1;
-}
 
-function computeFlesch(text) {
-  if (!text) return { flesch: null, gradeLevel: null };
-  const sentences = text.split(/[.!?]+/).filter(Boolean).length || 1;
-  const wordsArr = text.split(/\s+/).filter(Boolean);
-  const words = wordsArr.length || 1;
-  let syllables = 0;
-  for (const w of wordsArr) syllables += countSyllables(w);
-  const ASL = words / sentences;
-  const ASW = syllables / words;
-  // Flesch Reading Ease
-  const flesch = Math.round(206.835 - (1.015 * ASL) - (84.6 * ASW));
-  const gradeLevel = Math.round((0.39 * ASL) + (11.8 * ASW) - 15.59);
-  return { flesch, gradeLevel, sentences, words, syllables };
+  const matches = word.match(/[aeiouy]+/g);
+  return matches ? matches.length : 1;
 }
-
-module.exports = { computeFlesch };
