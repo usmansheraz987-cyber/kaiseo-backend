@@ -1,4 +1,7 @@
+const express = require("express");
 const generateKeywordSuggestions = require("../utils/keywordSuggestions");
+
+const router = express.Router();
 
 router.post("/", async (req, res) => {
   const { keyword, context, competitors = [] } = req.body;
@@ -33,10 +36,12 @@ router.post("/", async (req, res) => {
         dominationPlan: data.dominationPlan
       }
     });
-  } catch {
+  } catch (err) {
     res.status(500).json({
       success: false,
       error: "Failed to generate keyword strategy"
     });
   }
 });
+
+module.exports = router;
