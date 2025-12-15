@@ -16,7 +16,7 @@ const readabilityRoute = require("./routes/readability");
 const plagiarismRoute = require("./routes/plagiarism");
 const internalLinksRoute = require("./routes/internal-links.js");
 const metaTagsRoute = require("./routes/meta-tags");
-
+const keywordSuggestionsRoute = require("./routes/keyword-suggestions");
 
 
 app.use("/api/paraphrase", paraphraseRoute);
@@ -27,7 +27,7 @@ app.use("/api/readability", readabilityRoute);
 app.use("/api/plagiarism", plagiarismRoute);
 app.use("/api/internal-links", internalLinksRoute);
 app.use("/api/meta-tags", metaTagsRoute);
-
+app.use("/api/keyword-suggestions", keywordSuggestionsRoute);
 
 // health check
 app.get("/", (req, res) => res.send({ ok: true }));
