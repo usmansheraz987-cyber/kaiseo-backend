@@ -1,53 +1,56 @@
 const { generateJson } = require("./aiClient");
 
-async function generateKeywordSuggestions(keyword, context = "") {
-  const prompt = `
-You are an SEO keyword research assistant.
+async function generateKeywordSuggestions(keyword, context = "", competitors = []) {
+  const competitorText = competitors.length
+    ? `Competitors to consider:\n${competitors.join(", ")}`
+    : "No competitors provided.";
 
-Generate keyword suggestions for the seed keyword:
+  const prompt = `
+You are an advanced SEO strategist.
+
+Seed keyword:
 "${keyword}"
 
 Context:
 ${context || "general SEO"}
 
-Return ONLY valid JSON in the following structure:
+${competitorText}
+
+Return ONLY valid JSON using this structure:
 {
   "primary": [],
   "longTail": [],
   "questions": [],
-  "related": []
+  "related": [],
+  "intentMap": [
+    { "keyword": "", "intent": "" }
+  ],
+  "difficultyHints": [
+    { "keyword": "", "difficulty": "" }
+  ],
+  "competitorGaps": {
+    "missingTopics": [],
+    "weakCoverage": [],
+    "opportunityAngles": []
+  },
+  "dominationPlan": {
+    "bestPrimaryKeyword": "",
+    "recommendedContentType": "",
+    "sectionsToInclude": [],
+    "internalLinkIdeas": []
+  }
 }
 
 Rules:
-- Output valid JSON only
+- Valid JSON only
 - No explanations
 - No markdown
-- No extra text
-- 5 to 8 items per array
-- Keywords must be realistic and search-intent focused
+- Base competitor gaps on typical coverage of provided domains
+- Focus on realistic SEO opportunities
 `;
 
-  const responseText = await generateJson(prompt);
-
-  let parsed;
-
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (err) {
-    // Attempt to extract JSON if model wrapped it
-    const match = responseText.match(/\{[\s\S]*\}/);
-    if (!match) {
-      throw new Error("Invalid AI response format");
-    }
-    parsed = JSON.parse(match[0]);
-  }
-
-  return {
-    primary: Array.isArray(parsed.primary) ? parsed.primary : [],
-    longTail: Array.isArray(parsed.longTail) ? parsed.longTail : [],
-    questions: Array.isArray(parsed.questions) ? parsed.questions : [],
-    related: Array.isArray(parsed.related) ? parsed.related : []
-  };
+  const response = await generateJson(prompt);
+  return JSON.parse(response);
 }
 
 module.exports = generateKeywordSuggestions;
