@@ -1,28 +1,29 @@
-const aiClient = require("./aiClient");
+import openai from "./aiClient.js";
 
-module.exports = async function improveContent({ text, goal = "improve seo" }) {
-  if (!text || typeof text !== "string") {
-    throw new Error("Text is required for content improvement");
-  }
+export async function improveContent({ text, goal }) {
+  try {
+    const response = await openai.responses.create({
+      model: "gpt-4.1-mini",
+      input: `Improve the following content for SEO.
 
-  const prompt = `
-You are an SEO content expert.
-Goal: ${goal}
+Goal:
+${goal}
 
-Improve the following content for clarity, SEO, structure, and usefulness.
-Do not add fluff. Keep it factual and actionable.
-
-CONTENT:
+Content:
 ${text}
-`;
 
-  const response = await aiClient.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.4,
-  });
+Return improved content only.`
+    });
 
-  return {
-    improvedContent: response.choices[0].message.content.trim(),
-  };
-};
+    const improvedText = response.output_text;
+
+    if (!improvedText) {
+      throw new Error("AI returned empty output");
+    }
+
+    return improvedText;
+  } catch (error) {
+    console.error("Content Improver Error:", error);
+    throw error;
+  }
+}
