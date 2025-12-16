@@ -1,6 +1,6 @@
-import openai from "./aiClient.js";
+const openai = require("./aiClient");
 
-export async function improveContent({ text, goal }) {
+async function improveContent({ text, goal }) {
   try {
     const response = await openai.responses.create({
       model: "gpt-4.1-mini",
@@ -27,3 +27,7 @@ Return improved content only.`
     throw error;
   }
 }
+
+module.exports = {
+  improveContent
+};

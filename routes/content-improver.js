@@ -1,5 +1,5 @@
-import express from "express";
-import { improveContent } from "../utils/contentImprover.js";
+const express = require("express");
+const { improveContent } = require("../utils/contentImprover");
 
 const router = express.Router();
 
@@ -20,7 +20,8 @@ router.post("/", async (req, res) => {
       success: true,
       result: improved
     });
-  } catch {
+  } catch (error) {
+    console.error(error);
     res.status(500).json({
       success: false,
       error: "Failed to improve content"
@@ -28,4 +29,4 @@ router.post("/", async (req, res) => {
   }
 });
 
-export default router;
+module.exports = router;
