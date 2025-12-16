@@ -19,7 +19,6 @@ const metaTagsRoute = require("./routes/meta-tags");
 const keywordSuggestionsRoute = require("./routes/keyword-suggestions");
 const contentImproverRoute = require("./routes/content-improver");
 
-
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 app.use("/api/seo-analyze", require('./routes/seo-analyzer'));

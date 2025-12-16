@@ -20,8 +20,8 @@ router.post("/", async (req, res) => {
       success: true,
       result: improved
     });
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error("Content improver failed:", err);
     res.status(500).json({
       success: false,
       error: "Failed to improve content"
