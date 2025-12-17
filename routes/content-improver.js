@@ -2,7 +2,6 @@
 
 const express = require("express");
 const router = express.Router();
-
 const { analyzeContent } = require("../utils/content-improver");
 
 router.post("/", (req, res) => {

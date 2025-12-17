@@ -1,89 +1,133 @@
-// utils/contentImprover.js
+// utils/content-improver.js
 
-function getWordCount(text = "") {
-  return text.trim().split(/\s+/).filter(Boolean).length;
+function tokenize(text = "") {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, "")
+    .split(/\s+/)
+    .filter(Boolean);
 }
 
-function suggestSections(text) {
-  const base = [
-    {
-      title: "What is SEO?",
-      reason: "Explains the core concept for beginners"
-    },
-    {
-      title: "How SEO helps websites rank",
-      reason: "Matches primary search intent"
-    },
-    {
-      title: "How search engines evaluate content",
-      reason: "Builds topical authority"
-    }
+function unique(arr) {
+  return [...new Set(arr)];
+}
+
+function analyzeContent({ text, title = "", metaDescription = "" }) {
+  const words = tokenize(text);
+  const wordCount = words.length;
+
+  /* =========================
+     SUMMARY
+  ========================= */
+  const recommendedWords = 1200;
+
+  const contentDepth =
+    wordCount < 100 ? "very thin" :
+    wordCount < 400 ? "thin" :
+    wordCount < 800 ? "average" :
+    "good";
+
+  /* =========================
+     ISSUES
+  ========================= */
+  const issues = [];
+
+  if (!title.trim()) issues.push("Missing title");
+  if (!metaDescription.trim()) issues.push("Missing meta description");
+  if (wordCount < 300) issues.push("Content is thin for the topic");
+
+  /* =========================
+     COMPETITOR BENCHMARK (LOGIC BASED)
+  ========================= */
+  const competitorBenchmark = {
+    averageWordCount: 1400,
+    recommendedMin: 900,
+    recommendedIdeal: 1600,
+    commonSections: [
+      "What is SEO",
+      "How SEO works",
+      "Why SEO matters",
+      "Examples"
+    ]
+  };
+
+  /* =========================
+     SEMANTIC COVERAGE
+  ========================= */
+  const expectedTopics = [
+    "seo",
+    "search engines",
+    "ranking",
+    "keywords",
+    "content",
+    "optimization",
+    "technical",
+    "backlinks"
   ];
 
-  return base;
-}
+  const coveredTopics = expectedTopics.filter(t =>
+    words.includes(t)
+  );
 
-function detectContentGaps(wordCount) {
-  const gaps = [];
+  const missingTopics = expectedTopics.filter(
+    t => !coveredTopics.includes(t)
+  );
 
-  if (wordCount < 300) gaps.push("Content is too short to explain the topic");
-  if (wordCount < 600) gaps.push("No supporting examples or explanations");
-  if (wordCount < 1000) gaps.push("Lacks depth compared to ranking pages");
-
-  return gaps;
-}
-
-function expansionBlueprint() {
-  return {
-    introduction: 150,
-    coreSections: 800,
-    examples: 150,
-    conclusion: 100
+  const semanticCoverage = {
+    score: Math.round((coveredTopics.length / expectedTopics.length) * 100),
+    coveredTopics,
+    missingTopics
   };
-}
 
-function readabilityTarget() {
-  return {
-    recommendedScore: "60–70 (Standard)",
-    why: "Improves engagement and reduces bounce rate"
+  /* =========================
+     EXPANSION PLAN
+  ========================= */
+  const expansionPlan = {
+    currentWords: wordCount,
+    targetWords: recommendedWords,
+    sectionsToAdd: [
+      {
+        title: "What is SEO?",
+        targetWords: 200,
+        why: "Missing core definition"
+      },
+      {
+        title: "How SEO helps websites rank",
+        targetWords: 300,
+        why: "Primary search intent"
+      },
+      {
+        title: "How search engines evaluate content",
+        targetWords: 300,
+        why: "Builds topical authority"
+      }
+    ]
   };
-}
 
-function executionOrder() {
-  return [
+  /* =========================
+     EXECUTION ORDER
+  ========================= */
+  const executionOrder = [
     "Add a clear, keyword-focused title",
     "Write a compelling meta description",
-    "Expand content to at least 800 words",
+    "Expand content to at least 900 words",
     "Add 3–5 meaningful subheadings",
+    "Cover missing semantic topics",
     "Include examples or explanations"
   ];
-}
-
-function analyzeContent({ text = "", title = "", metaDescription = "" }) {
-  const wordCount = getWordCount(text);
 
   return {
     mode: "content-improver",
     summary: {
       wordCount,
-      recommendedWords: 1200,
-      contentDepth:
-        wordCount < 300 ? "very thin" :
-        wordCount < 800 ? "thin" :
-        "good"
+      recommendedWords,
+      contentDepth
     },
-    issues: [
-      !title && "Missing title",
-      !metaDescription && "Missing meta description",
-      wordCount < 800 && "Content is thin for the topic"
-    ].filter(Boolean),
-    improvements: {
-      addSections: suggestSections(text),
-      contentGaps: detectContentGaps(wordCount),
-      expansionPlan: expansionBlueprint(),
-      readabilityTarget: readabilityTarget()
-    },
-    executionOrder: executionOrder()
+    issues,
+    competitorBenchmark,
+    semanticCoverage,
+    expansionPlan,
+    executionOrder
   };
 }
 
