@@ -2,7 +2,8 @@
 
 const express = require("express");
 const router = express.Router();
-const { analyzeContent } = require("../utils/contentImprover");
+
+const { analyzeContent } = require("../utils/content-improver");
 
 router.post("/", (req, res) => {
   try {
@@ -15,7 +16,7 @@ router.post("/", (req, res) => {
     const result = analyzeContent({ text, title, metaDescription });
     return res.json(result);
   } catch (err) {
-    console.error("Content improver error:", err);
+    console.error("content improver error:", err);
     return res.status(500).json({ error: "internal error" });
   }
 });
