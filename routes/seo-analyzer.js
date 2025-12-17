@@ -40,7 +40,11 @@ router.post('/', async (req, res) => {
       const simpleKeywords = analyzeTextFallback(words, { topK: 10 });
 
       // semantic analysis
-      const semantic = analyzeSemantics(words, { topK: 12 });
+      let semantic = { semanticKeywords: [], keyphrases: [], clusters: [] };
+try {
+  semantic = analyzeSemantics(plain, { topK: 12 });
+} catch {}
+
       const keywords = simpleKeywords;
 
       // 🔑 attach required fields for seoScore
@@ -131,13 +135,17 @@ router.post('/', async (req, res) => {
     const keywords = simpleKeywords;
 
     const score = scoreSeo({
-      title: body.title || null,
-      metaDescription: body.metaDescription || null,
-      headings: [],
-      images: [],
-      links: { internal: [], external: [] },
-      wordText: plain
-    }, { readability: read, keywords });
+  title: body.title || null,
+  metaDescription: body.metaDescription || null,
+  headings: [],
+  images: [],
+  links: { internal: [], external: [] },
+  wordText: plain,
+  readability: read,
+  keywords,
+  semantic
+});
+
 
     // If user supplied a competitors list in request body.use it.
     let serpCompetitors = Array.isArray(body.competitors) ? body.competitors : [];
@@ -183,7 +191,11 @@ router.post('/', async (req, res) => {
     return res.json(out);
   } catch (err) {
     console.error('seo-analyze error:', err && err.stack ? err.stack : err);
-    return res.status(500).json({ error: 'internal error' });
+    return res.status(500).json({
+  error: 'internal error',
+  debug: err?.message || err
+});
+
   }
 });
 
