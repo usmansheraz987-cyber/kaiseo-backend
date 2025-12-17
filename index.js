@@ -29,6 +29,10 @@ app.use("/api/internal-links", internalLinksRoute);
 app.use("/api/meta-tags", metaTagsRoute);
 app.use("/api/keyword-suggestions", keywordSuggestionsRoute);
 app.use('/api/keyword-stuffing', require('./routes/keyword-stuffing'));
+app.use('/api/content-improver', require('./routes/content-improver'));
+
+
+
 
 
 
