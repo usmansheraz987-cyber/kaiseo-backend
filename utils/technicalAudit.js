@@ -1,6 +1,15 @@
 // utils/technicalAudit.js
-module.exports = function technicalAudit(extracted, html) {
+
+module.exports = function technicalAudit(extracted = {}, html = '') {
   const issues = [];
+
+  const headings = Array.isArray(extracted.headings) ? extracted.headings : [];
+  const images = Array.isArray(extracted.images) ? extracted.images : [];
+  const wordText = extracted.wordText || '';
+
+  const wordCount = wordText
+    ? wordText.split(/\s+/).filter(Boolean).length
+    : 0;
 
   // === CANONICAL ===
   if (!extracted.canonical) {
@@ -8,11 +17,11 @@ module.exports = function technicalAudit(extracted, html) {
   }
 
   // === H1 CHECK ===
-  const h1s = extracted.headings?.h1 || [];
+  const h1s = headings.filter(h => h.tag === 'h1');
   if (h1s.length === 0) issues.push("No H1 tag found");
   if (h1s.length > 1) issues.push("Multiple H1 tags detected");
 
-  // === TITLE LENGTH ===
+  // === TITLE ===
   if (!extracted.title) {
     issues.push("Missing <title> tag");
   } else {
@@ -42,39 +51,30 @@ module.exports = function technicalAudit(extracted, html) {
     issues.push("Missing JSON-LD structured data");
   }
 
-  // === IMAGE ALT ATTRIBUTES ===
-  const images = extracted.images || [];
-  const missingAlt = images.filter(img => !img.alt || img.alt.trim() === "");
+  // === IMAGE ALT ===
+  const missingAlt = images.filter(img => !img.alt || !img.alt.trim());
   if (missingAlt.length > 0) {
     issues.push(`${missingAlt.length} images missing ALT attribute`);
   }
 
-  // === BROKEN LINKS (basic check by status) ===
-  const broken = [
-    ...extracted.internalLinks.filter(l => l.status >= 400),
-    ...extracted.externalLinks.filter(l => l.status >= 400)
-  ];
-  if (broken.length > 0) {
-    issues.push(`${broken.length} broken links detected`);
-  }
-
-  // === EMPTY OR THIN CONTENT ===
-  if (extracted.wordCount < 200) {
+  // === CONTENT LENGTH ===
+  if (wordCount < 200) {
     issues.push("Thin content: fewer than 200 words");
   }
 
-  // === DUPLICATE TITLE/OG ===
-  if (extracted.title === extracted.ogTitle) {
-    issues.push("Title and OG:title are identical (low optimization)");
+  // === DUPLICATE TITLE / OG ===
+  if (extracted.title && extracted.ogTitle && extracted.title === extracted.ogTitle) {
+    issues.push("Title and OG:title are identical");
   }
 
-  // === HTTPS CHECK ===
+  // === HTTPS ===
   if (extracted.canonical && !extracted.canonical.startsWith("https://")) {
     issues.push("Canonical URL is not HTTPS");
   }
 
   return {
+    passed: issues.length === 0,
     issues,
-    passed: issues.length === 0
+    wordCount
   };
 };

@@ -43,17 +43,33 @@ router.post('/', async (req, res) => {
       const semantic = analyzeSemantics(words, { topK: 12 });
       const keywords = simpleKeywords;
 
-      // score
-      const score = scoreSeo(extracted, { readability: read, keywords });
+      // 🔑 attach required fields for seoScore
+      extracted.readability = read;
+      extracted.keywords = keywords;
+      extracted.semantic = semantic;
+      extracted.links = {
+        internal: extracted.internalLinks || [],
+        external: extracted.externalLinks || []
+      };
+
+      let tech;
+      try {
+        tech = technicalAudit(extracted, html);
+      } catch {
+        tech = { issues: ['Technical audit failed'], passed: false };
+      }
+
+      extracted.technical = tech;
+
+      // ✅ correct scoring call
+      const score = scoreSeo(extracted);
 
       // === COMPETITOR SERP ANALYSIS ===
       let serpCompetitors = [];
       try {
         const query = extracted.title || extracted.ogTitle || 'seo tools';
         serpCompetitors = await fetchSERP(query);
-      } catch (e) {
-        serpCompetitors = [];
-      }
+      } catch {}
 
       // AI insights (competitor-aware)
       let aiInsights = {};
@@ -65,11 +81,8 @@ router.post('/', async (req, res) => {
           wordText: words,
           competitors: serpCompetitors
         });
-      } catch (e) {
-        aiInsights = {};
-      }
+      } catch {}
 
-      const tech = technicalAudit(extracted, html);
 
       const output = {
         mode: 'html',
