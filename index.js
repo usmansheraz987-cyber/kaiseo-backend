@@ -28,6 +28,8 @@ app.use("/api/plagiarism", plagiarismRoute);
 app.use("/api/internal-links", internalLinksRoute);
 app.use("/api/meta-tags", metaTagsRoute);
 app.use("/api/keyword-suggestions", keywordSuggestionsRoute);
+app.use('/api/keyword-stuffing', require('./routes/keyword-stuffing'));
+
 
 
 // health check
