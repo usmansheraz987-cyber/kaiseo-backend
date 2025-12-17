@@ -1,94 +1,90 @@
-const readability = require('./readability');
-const { analyzeTextFallback } = require('./keywordExtractor');
-const { analyzeSemantics } = require('./semanticEngine');
+// utils/contentImprover.js
 
-function estimateRecommendedWords(topicKeywords = []) {
-  if (topicKeywords.length <= 3) return 600;
-  if (topicKeywords.length <= 6) return 900;
-  return 1200;
+function getWordCount(text = "") {
+  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-function splitIntoSections(text) {
-  return [
+function suggestSections(text) {
+  const base = [
     {
-      name: 'Main Content',
-      text,
-      wordCount: text.split(/\s+/).filter(Boolean).length
+      title: "What is SEO?",
+      reason: "Explains the core concept for beginners"
+    },
+    {
+      title: "How SEO helps websites rank",
+      reason: "Matches primary search intent"
+    },
+    {
+      title: "How search engines evaluate content",
+      reason: "Builds topical authority"
     }
+  ];
+
+  return base;
+}
+
+function detectContentGaps(wordCount) {
+  const gaps = [];
+
+  if (wordCount < 300) gaps.push("Content is too short to explain the topic");
+  if (wordCount < 600) gaps.push("No supporting examples or explanations");
+  if (wordCount < 1000) gaps.push("Lacks depth compared to ranking pages");
+
+  return gaps;
+}
+
+function expansionBlueprint() {
+  return {
+    introduction: 150,
+    coreSections: 800,
+    examples: 150,
+    conclusion: 100
+  };
+}
+
+function readabilityTarget() {
+  return {
+    recommendedScore: "60–70 (Standard)",
+    why: "Improves engagement and reduces bounce rate"
+  };
+}
+
+function executionOrder() {
+  return [
+    "Add a clear, keyword-focused title",
+    "Write a compelling meta description",
+    "Expand content to at least 800 words",
+    "Add 3–5 meaningful subheadings",
+    "Include examples or explanations"
   ];
 }
 
-module.exports = function contentImprover({ text, title, metaDescription }) {
-  const cleanText = (text || '').trim();
-  const wordCount = cleanText.split(/\s+/).filter(Boolean).length;
-
-  const read = readability.analyze(cleanText);
-  const keywords = analyzeTextFallback(cleanText, { topK: 10 });
-
-  let semantic = { semanticKeywords: [], keyphrases: [], clusters: [] };
-  try {
-    semantic = analyzeSemantics(cleanText, { topK: 10 });
-  } catch {}
-
-  const recommendedWords = estimateRecommendedWords(semantic.semanticKeywords);
-
-  const issues = [];
-  const priorityFixes = [];
-
-  if (!title) {
-    issues.push('Missing title');
-    priorityFixes.push('Add a clear, keyword-focused title');
-  }
-
-  if (!metaDescription) {
-    issues.push('Missing meta description');
-    priorityFixes.push('Write a compelling meta description');
-  }
-
-  if (wordCount < recommendedWords * 0.6) {
-    issues.push('Content is thin for the topic');
-    priorityFixes.push('Increase content depth and length');
-  }
-
-  if (read.score < 50) {
-    issues.push('Low readability');
-    priorityFixes.push('Simplify sentences and improve readability');
-  }
-
-  if (semantic.semanticKeywords.length < 5) {
-    issues.push('Weak semantic coverage');
-    priorityFixes.push('Add semantically related subtopics');
-  }
-
-  const sections = splitIntoSections(cleanText);
-
-  const expand = sections
-    .filter(s => s.wordCount < recommendedWords / sections.length)
-    .map(s => ({
-      section: s.name,
-      currentWords: s.wordCount,
-      recommendedWords: Math.ceil(recommendedWords / sections.length)
-    }));
+function analyzeContent({ text = "", title = "", metaDescription = "" }) {
+  const wordCount = getWordCount(text);
 
   return {
+    mode: "content-improver",
     summary: {
       wordCount,
-      recommendedWords,
+      recommendedWords: 1200,
       contentDepth:
-        wordCount < recommendedWords * 0.6 ? 'thin' :
-        wordCount < recommendedWords ? 'average' :
-        'good'
+        wordCount < 300 ? "very thin" :
+        wordCount < 800 ? "thin" :
+        "good"
     },
-    issues,
+    issues: [
+      !title && "Missing title",
+      !metaDescription && "Missing meta description",
+      wordCount < 800 && "Content is thin for the topic"
+    ].filter(Boolean),
     improvements: {
-      addSections: semantic.semanticKeywords.slice(0, 6),
-      expand,
-      readability: [
-        'Break long sentences into shorter ones',
-        'Use bullet points where possible',
-        'Avoid complex or repetitive wording'
-      ]
+      addSections: suggestSections(text),
+      contentGaps: detectContentGaps(wordCount),
+      expansionPlan: expansionBlueprint(),
+      readabilityTarget: readabilityTarget()
     },
-    priorityFixes
+    executionOrder: executionOrder()
   };
-};
+}
+
+module.exports = { analyzeContent };
