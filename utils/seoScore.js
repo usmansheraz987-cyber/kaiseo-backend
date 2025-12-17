@@ -28,6 +28,15 @@ function normalizeWeightedSum(buckets) {
 }
 
 module.exports = function scoreSeo(content = {}, options = {}) {
+    // === SAFETY NORMALIZATION (ADDED) ===
+  content = content || {};
+  content.headings = Array.isArray(content.headings) ? content.headings : [];
+  content.images = Array.isArray(content.images) ? content.images : [];
+  content.links = content.links || { internal: [], external: [] };
+  content.semantic = content.semantic || {};
+  content.readability = content.readability || {};
+  content.technical = content.technical || {};
+  
   // content: minimal expected shape:
   // { title, metaDescription, headings: [], images: [{alt}], links: {internal:[], external:[]}, wordText, readability: {flesch,...}, keywords:[], semantic:{semanticKeywords, keyphrases, clusters}, technical: {...}, performance: {...}, competitors: [...] }
   const weights = {

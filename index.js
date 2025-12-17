@@ -1,44 +1,73 @@
-const express = require("express");
-const cors = require("cors");
-require("dotenv").config();
+const express = require('express');
+const router = express.Router();
+const { analyzeTextFallback } = require('../utils/keywordExtractor');
 
-const app = express();
+const MAX_SIZE = 200_000;
+const MIN_WORDS = 100;
 
-// Middleware
-app.use(cors());
-app.use(express.json({ limit: "250kb" }));
+// POST /api/keyword-stuffing
+router.post('/', (req, res) => {
+  try {
+    const text = (req.body?.text || '').trim();
 
-// Routes
-const paraphraseRoute = require("./routes/paraphrase");
-const keywordDensityRoute = require("./routes/keyword-density.js");
-const aiDetector = require("./routes/ai-detector");
-const readabilityRoute = require("./routes/readability");
-const plagiarismRoute = require("./routes/plagiarism");
-const internalLinksRoute = require("./routes/internal-links.js");
-const metaTagsRoute = require("./routes/meta-tags");
-const keywordSuggestionsRoute = require("./routes/keyword-suggestions");
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
 
+    if (text.length > MAX_SIZE) {
+      return res.status(400).json({ error: 'Text too large' });
+    }
 
-app.use("/api/paraphrase", paraphraseRoute);
-app.use("/api/keyword-density", keywordDensityRoute);
-app.use("/api/seo-analyze", require('./routes/seo-analyzer'));
-app.use("/api/ai-detect", aiDetector);
-app.use("/api/readability", readabilityRoute);
-app.use("/api/plagiarism", plagiarismRoute);
-app.use("/api/internal-links", internalLinksRoute);
-app.use("/api/meta-tags", metaTagsRoute);
-app.use("/api/keyword-suggestions", keywordSuggestionsRoute);
-app.use('/api/keyword-stuffing', require('./routes/keyword-stuffing'));
+    const totalWords = text.split(/\s+/).filter(Boolean).length;
 
+    const keywords = analyzeTextFallback(text, { topK: 20 });
 
+    const results = keywords.map(k => {
+      const density = (k.count / totalWords) * 100;
 
-// health check
-app.get("/", (req, res) => res.send({ ok: true }));
+      let status = 'safe';
+      let recommendation = 'Keyword usage looks natural.';
 
-// Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+      // 🚫 Short text protection
+      if (totalWords < MIN_WORDS) {
+        status = 'insufficient-data';
+        recommendation =
+          'Text is too short to accurately evaluate keyword stuffing. Add more content.';
+      } else {
+        if (density > 4) {
+          status = 'stuffing';
+          recommendation =
+            'Reduce usage. Replace repetitions with synonyms or remove duplicates.';
+        } else if (density > 2.5) {
+          status = 'warning';
+          recommendation =
+            'Consider lowering frequency slightly for better readability.';
+        }
+      }
+
+      return {
+        keyword: k.keyword,
+        count: k.count,
+        density: Number(density.toFixed(2)),
+        status,
+        recommendation
+      };
+    });
+
+    return res.json({
+      mode: 'keyword-stuffing',
+      totalWords,
+      minWordsRequired: MIN_WORDS,
+      results
+    });
+
+  } catch (err) {
+    console.error('keyword-stuffing error:', err);
+    return res.status(500).json({
+      error: 'internal error',
+      debug: err?.message || String(err)
+    });
+  }
 });
 
-
+module.exports = router;
