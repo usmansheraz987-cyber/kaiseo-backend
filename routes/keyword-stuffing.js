@@ -3,7 +3,9 @@ const router = express.Router();
 const { analyzeTextFallback } = require('../utils/keywordExtractor');
 
 const MAX_SIZE = 200_000;
+const MIN_WORDS = 100;
 
+// POST /api/keyword-stuffing
 router.post('/', (req, res) => {
   try {
     const text = (req.body?.text || '').trim();
@@ -16,21 +18,31 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Text too large' });
     }
 
-    const words = text.split(/\s+/).length || 1;
+    const totalWords = text.split(/\s+/).filter(Boolean).length;
+
     const keywords = analyzeTextFallback(text, { topK: 20 });
 
     const results = keywords.map(k => {
-      const density = (k.count / words) * 100;
+      const density = (k.count / totalWords) * 100;
 
       let status = 'safe';
       let recommendation = 'Keyword usage looks natural.';
 
-      if (density > 4) {
-        status = 'stuffing';
-        recommendation = 'Reduce usage. Replace repetitions with synonyms or remove duplicates.';
-      } else if (density > 2.5) {
-        status = 'warning';
-        recommendation = 'Consider lowering frequency slightly for better readability.';
+      // 🚫 Short text protection
+      if (totalWords < MIN_WORDS) {
+        status = 'insufficient-data';
+        recommendation =
+          'Text is too short to accurately evaluate keyword stuffing. Add more content.';
+      } else {
+        if (density > 4) {
+          status = 'stuffing';
+          recommendation =
+            'Reduce usage. Replace repetitions with synonyms or remove duplicates.';
+        } else if (density > 2.5) {
+          status = 'warning';
+          recommendation =
+            'Consider lowering frequency slightly for better readability.';
+        }
       }
 
       return {
@@ -44,7 +56,8 @@ router.post('/', (req, res) => {
 
     return res.json({
       mode: 'keyword-stuffing',
-      totalWords: words,
+      totalWords,
+      minWordsRequired: MIN_WORDS,
       results
     });
 
