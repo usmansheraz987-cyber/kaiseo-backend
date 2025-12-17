@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const contentImprover = require('../utils/contentImprover');
+const contentImprover = require('../utils/content-improver');
 
 const MAX_SIZE = 200_000;
 
