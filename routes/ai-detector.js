@@ -1,22 +1,28 @@
 // routes/ai-detector.js
-const express = require('express');
-const router = express.Router();
-const detectAI = require('../utils/aiContentDetector'); // your detection util
 
-// POST /api/ai-detect
-router.post('/', async (req, res) => {
+const express = require("express");
+const router = express.Router();
+const detectAI = require("../utils/aiContentDetector");
+
+router.post("/", async (req, res) => {
   try {
-    const body = req.body || {};
-    const text = body.text || body.urlText || '';
-    if (!text || text.trim().length === 0) {
-      return res.status(400).json({ error: 'missing text' });
+    const { text = "" } = req.body;
+
+    if (!text || text.trim().length < 50) {
+      return res.status(400).json({
+        error: "Text too short for AI detection (minimum 50 words)"
+      });
     }
 
     const result = await detectAI(text);
-    return res.json({ ok: true, result });
+
+    return res.json({
+      mode: "ai-content-detector",
+      ...result
+    });
   } catch (err) {
-    console.error('AI detector error:', err);
-    return res.status(500).json({ error: 'internal error' });
+    console.error("AI detector error:", err);
+    return res.status(500).json({ error: "internal error" });
   }
 });
 
