@@ -31,13 +31,12 @@ function analyzeContent({ text, title = "", metaDescription = "" }) {
      ISSUES
   ========================= */
   const issues = [];
-
   if (!title.trim()) issues.push("Missing title");
   if (!metaDescription.trim()) issues.push("Missing meta description");
   if (wordCount < 300) issues.push("Content is thin for the topic");
 
   /* =========================
-     COMPETITOR BENCHMARK (LOGIC BASED)
+     COMPETITOR BENCHMARK (LOGIC)
   ========================= */
   const competitorBenchmark = {
     averageWordCount: 1400,
@@ -65,18 +64,42 @@ function analyzeContent({ text, title = "", metaDescription = "" }) {
     "backlinks"
   ];
 
-  const coveredTopics = expectedTopics.filter(t =>
-    words.includes(t)
-  );
-
-  const missingTopics = expectedTopics.filter(
-    t => !coveredTopics.includes(t)
-  );
+  const coveredTopics = expectedTopics.filter(t => words.includes(t));
+  const missingTopics = expectedTopics.filter(t => !coveredTopics.includes(t));
 
   const semanticCoverage = {
     score: Math.round((coveredTopics.length / expectedTopics.length) * 100),
     coveredTopics,
     missingTopics
+  };
+
+  /* =========================
+     SECTION KEYWORD MAP (NEW)
+  ========================= */
+  const sectionKeywordMap = [
+    {
+      section: "What is SEO?",
+      keywords: ["seo", "search engine optimization", "organic search"]
+    },
+    {
+      section: "How SEO helps websites rank",
+      keywords: ["ranking factors", "visibility", "google results"]
+    },
+    {
+      section: "How search engines evaluate content",
+      keywords: ["crawling", "indexing", "content quality"]
+    }
+  ];
+
+  /* =========================
+     ON-PAGE SUGGESTIONS (NEW)
+  ========================= */
+  const onPageSuggestions = {
+    title: title || "What Is SEO and How It Helps Websites Rank",
+    metaDescription:
+      metaDescription ||
+      "Learn what SEO is, how it works, and how it helps websites rank higher on search engines.",
+    h1: "How SEO Helps Websites Rank on Search Engines"
   };
 
   /* =========================
@@ -108,10 +131,10 @@ function analyzeContent({ text, title = "", metaDescription = "" }) {
      EXECUTION ORDER
   ========================= */
   const executionOrder = [
-    "Add a clear, keyword-focused title",
-    "Write a compelling meta description",
+    "Apply suggested title and H1",
+    "Add meta description",
     "Expand content to at least 900 words",
-    "Add 3–5 meaningful subheadings",
+    "Add missing sections with target keywords",
     "Cover missing semantic topics",
     "Include examples or explanations"
   ];
@@ -126,6 +149,8 @@ function analyzeContent({ text, title = "", metaDescription = "" }) {
     issues,
     competitorBenchmark,
     semanticCoverage,
+    sectionKeywordMap,
+    onPageSuggestions,
     expansionPlan,
     executionOrder
   };
