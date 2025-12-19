@@ -11,7 +11,7 @@ app.use(express.json({ limit: "250kb" }));
 // Routes
 const paraphraseRoute = require("./routes/paraphrase");
 const keywordDensityRoute = require("./routes/keyword-density.js");
-const aiDetector = require("./routes/ai-detector");
+const aiDetectorRoute = require("./routes/ai-detector");
 const readabilityRoute = require("./routes/readability");
 const plagiarismRoute = require("./routes/plagiarism");
 const internalLinksRoute = require("./routes/internal-links.js");
@@ -22,7 +22,7 @@ const keywordSuggestionsRoute = require("./routes/keyword-suggestions");
 app.use("/api/paraphrase", paraphraseRoute);
 app.use("/api/keyword-density", keywordDensityRoute);
 app.use("/api/seo-analyze", require('./routes/seo-analyzer'));
-app.use("/api/ai-detect", aiDetector);
+app.use("/api/ai-detect", aiDetectorRoute);
 app.use("/api/readability", readabilityRoute);
 app.use("/api/plagiarism", plagiarismRoute);
 app.use("/api/internal-links", internalLinksRoute);
