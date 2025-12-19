@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const detectAI = require("../utils/aiContentDetector");
+const analyzeInsights = require("../utils/aiInsightsEngine");
 
 // SINGLE TEXT DETECTION
 router.post("/", async (req, res) => {
@@ -76,5 +77,30 @@ router.post("/compare", async (req, res) => {
     return res.status(500).json({ error: "internal error" });
   }
 });
+
+// INSIGHTS MODE (sentence-level analysis)
+router.post("/insights", async (req, res) => {
+  try {
+    const { text = "" } = req.body;
+
+    if (!text || text.trim().length < 80) {
+      return res.status(400).json({
+        error: "Text too short for sentence-level insights"
+      });
+    }
+
+    const insights = analyzeInsights(text);
+
+    return res.json({
+      mode: "ai-content-detector-insights",
+      ...insights
+    });
+  } catch (err) {
+    console.error("AI insights error:", err);
+    return res.status(500).json({ error: "internal error" });
+  }
+});
+
+
 
 module.exports = router;
