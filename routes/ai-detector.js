@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const detectAI = require("../utils/aiContentDetector");
 
-// EXISTING ENDPOINT — DO NOT TOUCH
+// SINGLE TEXT DETECTION
 router.post("/", async (req, res) => {
   try {
     const { text = "" } = req.body;
@@ -25,7 +25,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-// ✅ NEW ENDPOINT — COMPARE MODE
+// COMPARE MODE
 router.post("/compare", async (req, res) => {
   try {
     const { original = "", rewritten = "" } = req.body;
@@ -44,11 +44,20 @@ router.post("/compare", async (req, res) => {
       before.aiProbability - after.aiProbability
     );
 
+    let summary =
+      improvementScore > 0
+        ? "AI probability reduced after rewrite."
+        : "No structural change detected.";
+
+    if (before.confidence === "low" || after.confidence === "low") {
+      summary =
+        "Text is too short for reliable comparison. Add more content for clearer results.";
+    }
+
     return res.json({
       mode: "ai-content-detector-compare",
       confidence:
-        original.split(/\s+/).length < 80 ||
-        rewritten.split(/\s+/).length < 80
+        before.confidence === "low" || after.confidence === "low"
           ? "low"
           : "medium",
       before: {
@@ -60,10 +69,7 @@ router.post("/compare", async (req, res) => {
         verdict: after.verdict
       },
       improvementScore,
-      summary:
-        improvementScore > 0
-          ? "AI probability reduced after rewrite."
-          : "No significant improvement detected."
+      summary
     });
   } catch (err) {
     console.error("AI compare error:", err);
