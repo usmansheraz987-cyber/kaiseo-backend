@@ -1,6 +1,8 @@
+// src/services/orchestrator.js
+
 const { callOpenAI } = require("../../utils/aiClient");
-const analyzeInsights = require("../../utils/aiInsightsEngine");
 const detectAI = require("../../utils/aiContentDetector");
+const analyzeInsights = require("../../utils/aiInsightsEngine");
 
 // ================= CONFIG =================
 const MAX_TEXT_LENGTH = 5000;
@@ -8,92 +10,102 @@ const MAX_RETRIES = 2;
 
 // ================= HELPERS =================
 function isTextValid(text) {
-  return typeof text === "string" && text.trim().length >= 20 && text.length <= MAX_TEXT_LENGTH;
+  if (!text || typeof text !== "string") return false;
+  if (text.trim().length < 10) return false;
+  if (text.length > MAX_TEXT_LENGTH) return false;
+  return true;
 }
 
 function cleanAIOutput(text) {
   if (!text) return "";
   return text
-    .replace(/^["'\s]+|["'\s]+$/g, "")
-    .replace(/^Rewrite(d)?\s*:\s*/i, "")
+    .replace(/^Rewritten:\s*/i, "")
+    .replace(/^Output:\s*/i, "")
     .trim();
 }
 
-function buildPrompt(text, mode, retry) {
-  let baseRules = `
-Rewrite the text naturally.
-Keep the meaning identical.
-Do not explain anything.
-Return ONLY the rewritten text.
-`;
+function countSentences(text) {
+  return text.split(/[.!?]+/).filter(Boolean).length;
+}
 
-  let modeRules = "";
+// ================= FORCE REWRITE =================
+function shouldForceRewrite({ mode, text, beforeAI }) {
+  if (mode !== "anti-ai") return false;
+  if (!beforeAI || typeof beforeAI.aiProbability !== "number") return false;
+
+  return countSentences(text) === 1 && beforeAI.aiProbability >= 40;
+}
+
+// ================= PROMPT BUILDER =================
+function buildPrompt(text, mode, attempt, forceRewrite) {
+  const base = `Rewrite the following text while preserving meaning:\n\n"${text}"\n`;
+
+  if (forceRewrite) {
+    return `
+You MUST rewrite this sentence even if it sounds human.
+Change structure, phrasing, and rhythm.
+Avoid synonyms-only changes.
+Return ONLY the rewritten text.
+
+${base}
+`;
+  }
 
   switch (mode) {
     case "anti-ai":
-      modeRules = `
-Avoid predictable phrasing.
-Break sentence symmetry.
-Mix short and long sentences.
-Avoid textbook definitions.
-Use subtle human phrasing.
-`;
-      break;
+      return `
+Rewrite to avoid AI-detection patterns.
+Increase variation.
+Change sentence structure.
+Avoid generic phrasing.
+Do NOT add fluff.
 
+${base}
+`;
     case "seo":
-      modeRules = `
-Improve clarity and flow.
-Preserve keywords naturally.
-Avoid keyword stuffing.
-`;
-      break;
+      return `
+Rewrite for SEO clarity.
+Natural keywords.
+No stuffing.
+Readable and concise.
 
+${base}
+`;
     case "formal":
-      modeRules = `
-Use professional tone.
-Avoid contractions.
-Keep language precise.
-`;
-      break;
+      return `
+Rewrite in a professional, formal tone.
+No contractions.
+Clear and precise.
 
+${base}
+`;
     case "casual":
-      modeRules = `
-Use relaxed, conversational tone.
-Allow contractions.
-Sound human.
-`;
-      break;
+      return `
+Rewrite in a relaxed, conversational tone.
+Natural flow.
+Friendly wording.
 
-    case "human":
+${base}
+`;
     default:
-      modeRules = `
-Sound natural and balanced.
-Avoid extremes.
+      return `
+Rewrite naturally like a human writer.
+Balanced tone.
+
+${base}
 `;
   }
-
-  if (retry > 0) {
-    modeRules += `
-Change sentence structure more than before.
-Avoid repeating earlier phrasing.
-`;
-  }
-
-  return `
-${baseRules}
-${modeRules}
-
-Text:
-${text}
-`;
 }
 
 // ================= SCORING =================
-function calculateHumanizationScore(beforeAI, afterAI) {
-  if (!beforeAI || !afterAI) return 0;
+function calculateHumanizationScore(before, after) {
+  let score = 50;
 
-  const improvement = beforeAI.aiProbability - afterAI.aiProbability;
-  return Math.max(0, Math.min(100, Math.round(50 + improvement)));
+  if (after.aiProbability < before.aiProbability) score += 20;
+  if (after.signals.sentenceVariance !== before.signals.sentenceVariance) score += 10;
+  if (before.signals.uniformSentences && !after.signals.uniformSentences) score += 10;
+
+  return Math.min(100, Math.max(0, score));
 }
 
 function buildComparison(before, after) {
@@ -118,45 +130,57 @@ async function runParaphraser({ text, mode = "human" }) {
     throw new Error("Invalid input text");
   }
 
-  // BEFORE METRICS
-  const beforeInsights = analyzeInsights(text);
   const beforeAI = await detectAI(text);
+  const beforeInsights = analyzeInsights(text);
 
-  let bestOutput = text;
+  let bestResult = null;
   let retriesUsed = 0;
+
+  const forceRewrite = shouldForceRewrite({ mode, text, beforeAI });
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     retriesUsed = attempt;
 
+    let aiText = null;
     try {
-      const prompt = buildPrompt(text, mode, attempt);
-      const aiText = await callOpenAI(prompt);
-      const cleaned = cleanAIOutput(aiText);
-
-      if (cleaned) {
-        bestOutput = cleaned;
-        break;
-      }
-    } catch (err) {
-      continue;
+      const prompt = buildPrompt(text, mode, attempt, forceRewrite);
+      aiText = await callOpenAI(prompt);
+    } catch {
+      if (!forceRewrite) continue;
     }
+
+    if (!aiText && !forceRewrite) continue;
+
+    let rewritten = cleanAIOutput(aiText || text);
+
+    const afterAI = await detectAI(rewritten);
+    const afterInsights = analyzeInsights(rewritten);
+
+    bestResult = {
+      rewritten,
+      afterAI,
+      afterInsights,
+    };
+
+    break;
   }
 
-  // AFTER METRICS
-  const afterInsights = analyzeInsights(bestOutput);
-  const afterAI = await detectAI(bestOutput);
+  const afterAI = bestResult?.afterAI || beforeAI;
+  const afterInsights = bestResult?.afterInsights || beforeInsights;
 
   const humanizationScore = calculateHumanizationScore(beforeAI, afterAI);
+  const comparison = buildComparison(beforeAI, afterAI);
 
   return {
     status: "success",
     mode,
     input: text,
-    output: bestOutput,
+    output: bestResult?.rewritten || text,
     retriesUsed,
+    forcedRewrite: forceRewrite,
     humanizationScore,
     improvementSummary: buildSummary(humanizationScore),
-    comparison: buildComparison(beforeAI, afterAI),
+    comparison,
     aiDetection: {
       before: beforeAI,
       after: afterAI,
@@ -168,4 +192,6 @@ async function runParaphraser({ text, mode = "human" }) {
   };
 }
 
-module.exports = { runParaphraser };
+module.exports = {
+  runParaphraser,
+};
