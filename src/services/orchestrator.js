@@ -1,8 +1,8 @@
 // src/services/orchestrator.js
 
-const { callOpenAI } = require("../utils/aiClient");
-const analyzeInsights = require("../utils/aiInsightsEngine");
-const detectAI = require("../utils/aiContentDetector");
+const { callOpenAI } = require("../../utils/aiClient");
+const analyzeInsights = require("../../utils/aiInsightsEngine");
+const detectAI = require("../../utils/aiContentDetector");
 
 // ===============================
 // CONFIG (safe defaults)
