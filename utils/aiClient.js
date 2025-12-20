@@ -1,11 +1,12 @@
-const { Configuration, OpenAIApi } = require("openai");
+const OpenAI = require("openai");
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY || "";
-let openaiClient = null;
+let openai = null;
 
 if (OPENAI_KEY) {
-  const configuration = new Configuration({ apiKey: OPENAI_KEY });
-  openaiClient = new OpenAIApi(configuration);
+  openai = new OpenAI({
+    apiKey: OPENAI_KEY
+  });
 }
 
 function safeArray(arr) {
@@ -13,14 +14,14 @@ function safeArray(arr) {
 }
 
 /**
- * TEXT GENERATION (for paraphraser, humanizer, etc.)
+ * TEXT GENERATION (paraphraser, humanizer, etc.)
  */
 async function generateText(prompt, options = {}) {
-  if (!openaiClient) {
+  if (!openai) {
     throw new Error("OpenAI client not available");
   }
 
-  const resp = await openaiClient.createChatCompletion({
+  const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: "You are a professional human editor." },
@@ -30,18 +31,18 @@ async function generateText(prompt, options = {}) {
     max_tokens: options.maxTokens ?? 800
   });
 
-  return resp.data.choices[0].message.content;
+  return response.choices[0].message.content;
 }
 
 /**
- * JSON GENERATION (used by SEO tools)
+ * JSON GENERATION (SEO tools)
  */
 async function generateJson(prompt) {
-  if (!openaiClient) {
+  if (!openai) {
     throw new Error("OpenAI client not available");
   }
 
-  const resp = await openaiClient.createChatCompletion({
+  const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     messages: [
       { role: "system", content: "Return valid JSON only." },
@@ -51,7 +52,7 @@ async function generateJson(prompt) {
     max_tokens: 800
   });
 
-  return resp.data.choices[0].message.content;
+  return response.choices[0].message.content;
 }
 
 /**
@@ -85,7 +86,7 @@ async function generateSeoInsights({
     priorityFixes: []
   };
 
-  if (!openaiClient) return minimal;
+  if (!openai) return minimal;
 
   try {
     const aiText = await generateJson("Generate SEO insights as JSON.");
