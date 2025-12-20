@@ -1,6 +1,6 @@
-const { callOpenAI } = require("../utils/aiClient");
-const analyzeInsights = require("../utils/aiInsightsEngine");
-const detectAI = require("../utils/aiContentDetector");
+const { callOpenAI } = require("../../utils/aiClient");
+const analyzeInsights = require("../../utils/aiInsightsEngine");
+const detectAI = require("../../utils/aiContentDetector");
 
 // ================= CONFIG =================
 const MAX_TEXT_LENGTH = 5000;
