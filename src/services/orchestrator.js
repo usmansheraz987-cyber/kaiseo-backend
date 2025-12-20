@@ -1,6 +1,6 @@
 // src/services/orchestrator.js
 
-const { callOpenAI } = require("../../utils/aiClient");
+const { generateJson } = require("../../utils/aiClient");
 const analyzeInsights = require("../../utils/aiInsightsEngine");
 const detectAI = require("../../utils/aiContentDetector");
 
@@ -24,10 +24,7 @@ function isTextValid(text) {
 
 function cleanAIOutput(text) {
   if (!text) return "";
-  return text
-    .replace(/^.*Rewritten:\s*/is, "")
-    .replace(/\n+/g, " ")
-    .trim();
+  return text.replace(/\n+/g, " ").trim();
 }
 
 function humanizeDeterministic(text) {
@@ -38,7 +35,7 @@ function humanizeDeterministic(text) {
 }
 
 // ===============================
-// PROMPT BUILDER
+// PROMPT
 // ===============================
 function buildPrompt(text, mode, retry) {
   let rules = `
@@ -46,17 +43,16 @@ You are a professional human editor.
 
 Rules:
 - Keep meaning identical
-- Output ONLY rewritten text
-- No explanations
-- No lists
-- Natural sentence rhythm
+- Rewrite naturally
+- Do not explain anything
+- Return ONLY the rewritten text
 `;
 
   if (mode === "anti-ai" || retry > 0) {
     rules += `
 - Avoid predictable phrasing
-- Avoid symmetry
-- Sound human, not AI
+- Vary sentence length
+- Sound human
 `;
   }
 
@@ -67,14 +63,13 @@ Rules:
 `;
   }
 
-  return `${rules}\nText:\n${text}`;
+  return `${rules}\n\nText:\n${text}`;
 }
 
 // ===============================
-// CORE ORCHESTRATOR
+// ORCHESTRATOR
 // ===============================
 async function runParaphraser({ text, mode = "human" }) {
-  // STEP 1: validation
   if (!isTextValid(text)) {
     return {
       status: "error",
@@ -82,81 +77,45 @@ async function runParaphraser({ text, mode = "human" }) {
     };
   }
 
-  // STEP 2: baseline metrics
   const beforeInsights = analyzeInsights(text);
   const beforeAI = await detectAI(text);
 
-  let bestResult = null;
+  let best = null;
   let retriesUsed = 0;
 
-  // STEP 3–6: rewrite loop
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     retriesUsed = attempt;
-    let aiText = "";
 
+    let aiText = "";
     try {
       const prompt = buildPrompt(text, mode, attempt);
-
-      let response = await callOpenAI({
-        messages: [
-          { role: "system", content: "You are a professional human editor." },
-          { role: "user", content: prompt }
-        ],
-        temperature: 0.7
-      });
-
-// normalize aiClient response (FINAL)
-if (typeof response === "string") {
-  aiText = response;
-} 
-else if (response?.choices?.[0]?.message?.content) {
-  aiText = response.choices[0].message.content;
-}
-else if (response?.data?.choices?.[0]?.message?.content) {
-  aiText = response.data.choices[0].message.content;
-}
-else if (response?.text) {
-  aiText = response.text;
-}
-else if (response?.content) {
-  aiText = response.content;
-}
-else {
-  aiText = "";
-}
-
-    } catch (err) {
+      aiText = await generateJson(prompt);
+    } catch {
       continue;
     }
 
     if (!aiText) continue;
 
-    let rewritten = cleanAIOutput(aiText);
-    rewritten = humanizeDeterministic(rewritten);
-
+    let rewritten = humanizeDeterministic(cleanAIOutput(aiText));
     if (!rewritten) continue;
 
-    // STEP 5: metrics after rewrite
     const afterInsights = analyzeInsights(rewritten);
     const afterAI = await detectAI(rewritten);
 
     const candidate = {
       text: rewritten,
-      insights: afterInsights,
       aiScore: afterAI,
-      attempt
+      insights: afterInsights
     };
 
-    // STEP 7: pick best
-    if (!bestResult || candidate.aiScore < bestResult.aiScore) {
-      bestResult = candidate;
+    if (!best || candidate.aiScore < best.aiScore) {
+      best = candidate;
     }
 
     if (candidate.aiScore < AI_THRESHOLD) break;
   }
 
-  // STEP 9: fallback
-  if (!bestResult) {
+  if (!best) {
     return {
       status: "partial",
       output: humanizeDeterministic(text),
@@ -165,20 +124,19 @@ else {
     };
   }
 
-  // STEP 8: final response
   return {
     status: "success",
     mode,
     input: text,
-    output: bestResult.text,
+    output: best.text,
     retriesUsed,
     aiDetection: {
       before: beforeAI,
-      after: bestResult.aiScore
+      after: best.aiScore
     },
     insights: {
       before: beforeInsights,
-      after: bestResult.insights
+      after: best.insights
     }
   };
 }
