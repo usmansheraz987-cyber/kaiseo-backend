@@ -98,12 +98,27 @@ async function runParaphraser({ text, mode }) {
 
     let aiText = null;
 
-    try {
-      const prompt = buildPrompt(text, mode, attempt);
-      aiText = await callOpenAI(prompt);
-    } catch (err) {
-      continue;
-    }
+try {
+  const prompt = buildPrompt(text, mode, attempt);
+
+  aiText = await callOpenAI({
+    messages: [
+      {
+        role: "system",
+        content: "You are a professional human editor."
+      },
+      {
+        role: "user",
+        content: prompt
+      }
+    ],
+    temperature: 0.7
+  });
+
+} catch (err) {
+  continue;
+}
+
 
     if (!aiText) continue;
 
