@@ -1,6 +1,4 @@
 // src/services/orchestrator.js
-// HARD FORCE REWRITE ENABLED
-
 
 const { callOpenAI } = require("../../utils/aiClient");
 const detectAI = require("../../utils/aiContentDetector");
@@ -30,19 +28,18 @@ function countSentences(text) {
   return text.split(/[.!?]+/).filter(Boolean).length;
 }
 
-// ================= HARD FALLBACK =================
-// GUARANTEED rewrite even if AI fails
-function hardRewriteSingleSentence(text) {
-  return text
-    .replace(/^SEO helps/i, "Search engine optimization helps")
-    .replace(/rank higher on search engines/i, "achieve better positions in search results");
-}
-
 // ================= FORCE REWRITE =================
 function shouldForceRewrite({ mode, text, beforeAI }) {
   if (mode !== "anti-ai") return false;
   if (!beforeAI || typeof beforeAI.aiProbability !== "number") return false;
   return countSentences(text) === 1 && beforeAI.aiProbability >= 40;
+}
+
+// ================= HARD FALLBACK =================
+function hardRewriteSingleSentence(text) {
+  return text
+    .replace(/^SEO helps/i, "Search engine optimization helps")
+    .replace(/rank higher on search engines/i, "achieve better positions in search results");
 }
 
 // ================= PROMPT BUILDER =================
@@ -52,9 +49,9 @@ function buildPrompt(text, mode, forceRewrite) {
   if (forceRewrite) {
     return `
 You MUST rewrite this sentence.
-The rewritten text must be structurally different from the original.
-Do NOT reuse the same sentence or sentence pattern.
-Change word order, clause structure, and phrasing.
+The rewritten text must be structurally different.
+Do NOT reuse the same sentence pattern.
+Change word order and phrasing.
 Return ONLY the rewritten text.
 
 ${base}
@@ -101,29 +98,18 @@ ${base}
   }
 }
 
-// ================= SCORING =================
-function calculateHumanizationScore(before, after) {
-  let score = 50;
-  if (after.aiProbability < before.aiProbability) score += 20;
-  if (after.signals.sentenceVariance !== before.signals.sentenceVariance) score += 10;
-  if (before.signals.uniformSentences && !after.signals.uniformSentences) score += 10;
-  return Math.min(100, Math.max(0, score));
-}
-
-function buildComparison(before, after) {
+// ================= COMPARISON =================
+function buildComparison(beforeAI, afterAI, beforeText, afterText) {
   return {
-    aiProbabilityChange: before.aiProbability - after.aiProbability,
-    sentenceVarianceImproved:
-      before.signals.sentenceVariance !== after.signals.sentenceVariance,
-    uniformityReduced:
-      before.signals.uniformSentences && !after.signals.uniformSentences,
+    beforeText,
+    afterText,
+    aiProbabilityDrop: beforeAI.aiProbability - afterAI.aiProbability,
+    verdictChange: `${beforeAI.verdict} → ${afterAI.verdict}`,
+    summary:
+      beforeAI.aiProbability > afterAI.aiProbability
+        ? "AI probability reduced and structure improved."
+        : "Structure changed; AI probability unchanged (expected for short text).",
   };
-}
-
-function buildSummary(score) {
-  if (score >= 75) return "Strong humanization improvement detected.";
-  if (score >= 55) return "Moderate improvement with more natural phrasing.";
-  return "Minor changes detected. Content already human-like.";
 }
 
 // ================= MAIN =================
@@ -150,7 +136,6 @@ async function runParaphraser({ text, mode = "human" }) {
     }
   }
 
-  // HARD FALLBACK — GUARANTEED CHANGE
   if (forceRewrite && (!rewritten || rewritten === text)) {
     rewritten = hardRewriteSingleSentence(text);
   }
@@ -160,9 +145,6 @@ async function runParaphraser({ text, mode = "human" }) {
   const afterAI = await detectAI(finalText);
   const afterInsights = analyzeInsights(finalText);
 
-  const humanizationScore = calculateHumanizationScore(beforeAI, afterAI);
-  const comparison = buildComparison(beforeAI, afterAI);
-
   return {
     status: "success",
     mode,
@@ -170,13 +152,19 @@ async function runParaphraser({ text, mode = "human" }) {
     output: finalText,
     retriesUsed,
     forcedRewrite: forceRewrite,
-    humanizationScore,
-    improvementSummary: buildSummary(humanizationScore),
-    comparison,
+
+    comparison: buildComparison(
+      beforeAI,
+      afterAI,
+      text,
+      finalText
+    ),
+
     aiDetection: {
       before: beforeAI,
       after: afterAI,
     },
+
     insights: {
       before: beforeInsights,
       after: afterInsights,
