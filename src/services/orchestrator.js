@@ -1,41 +1,24 @@
-const { generateText } = require("../../utils/aiClient");
-const analyzeInsights = require("../../utils/aiInsightsEngine");
-const detectAI = require("../../utils/aiContentDetector");
+const { callOpenAI } = require("../utils/aiClient");
+const analyzeInsights = require("../utils/aiInsightsEngine");
+const detectAI = require("../utils/aiContentDetector");
 
-// ===============================
-// CONFIG
-// ===============================
+// ================= CONFIG =================
 const MAX_TEXT_LENGTH = 5000;
 const MAX_RETRIES = 2;
-const AI_THRESHOLD = 55;
 
-// ===============================
-// VALIDATION
-// ===============================
+// ================= HELPERS =================
 function isTextValid(text) {
-  if (!text || typeof text !== "string") return false;
-  if (text.trim().length < 20) return false;
-  if (text.length > MAX_TEXT_LENGTH) return false;
-  return true;
+  return typeof text === "string" && text.trim().length >= 20 && text.length <= MAX_TEXT_LENGTH;
 }
 
-// ===============================
-// CLEANING & HUMANIZATION
-// ===============================
 function cleanAIOutput(text) {
-  return text.replace(/\n+/g, " ").trim();
-}
-
-function humanizeDeterministic(text) {
+  if (!text) return "";
   return text
-    .replace(/\bFurthermore\b|\bMoreover\b|\bIn addition\b/gi, "Also")
-    .replace(/\s{2,}/g, " ")
+    .replace(/^["'\s]+|["'\s]+$/g, "")
+    .replace(/^Rewrite(d)?\s*:\s*/i, "")
     .trim();
 }
 
-// ===============================
-// PROMPT BUILDER (MODES)
-// ===============================
 function buildPrompt(text, mode, retry) {
   let baseRules = `
 Rewrite the text naturally.
@@ -52,33 +35,32 @@ Return ONLY the rewritten text.
 Avoid predictable phrasing.
 Break sentence symmetry.
 Mix short and long sentences.
-Avoid generic definitions.
-Add subtle human nuance where natural.
+Avoid textbook definitions.
+Use subtle human phrasing.
 `;
       break;
 
     case "seo":
       modeRules = `
 Improve clarity and flow.
-Preserve important keywords naturally.
+Preserve keywords naturally.
 Avoid keyword stuffing.
-Prefer clear, scannable sentences.
 `;
       break;
 
     case "formal":
       modeRules = `
-Use a professional and neutral tone.
+Use professional tone.
 Avoid contractions.
-Keep language precise and structured.
+Keep language precise.
 `;
       break;
 
     case "casual":
       modeRules = `
-Use a relaxed, conversational tone.
+Use relaxed, conversational tone.
 Allow contractions.
-Sound like a real person explaining something.
+Sound human.
 `;
       break;
 
@@ -106,87 +88,83 @@ ${text}
 `;
 }
 
-// ===============================
-// CORE ORCHESTRATOR
-// ===============================
+// ================= SCORING =================
+function calculateHumanizationScore(beforeAI, afterAI) {
+  if (!beforeAI || !afterAI) return 0;
+
+  const improvement = beforeAI.aiProbability - afterAI.aiProbability;
+  return Math.max(0, Math.min(100, Math.round(50 + improvement)));
+}
+
+function buildComparison(before, after) {
+  return {
+    aiProbabilityChange: before.aiProbability - after.aiProbability,
+    sentenceVarianceImproved:
+      before.signals.sentenceVariance !== after.signals.sentenceVariance,
+    uniformityReduced:
+      before.signals.uniformSentences && !after.signals.uniformSentences,
+  };
+}
+
+function buildSummary(score) {
+  if (score >= 75) return "Strong humanization improvement detected.";
+  if (score >= 55) return "Moderate improvement with more natural phrasing.";
+  return "Minor changes detected. Content already human-like.";
+}
+
+// ================= MAIN =================
 async function runParaphraser({ text, mode = "human" }) {
-  // STEP 1: validation
   if (!isTextValid(text)) {
-    return {
-      status: "error",
-      message: "Invalid or too short text"
-    };
+    throw new Error("Invalid input text");
   }
 
-  // STEP 2: baseline analysis
+  // BEFORE METRICS
   const beforeInsights = analyzeInsights(text);
   const beforeAI = await detectAI(text);
 
-  let bestCandidate = null;
+  let bestOutput = text;
   let retriesUsed = 0;
 
-  // STEP 3–6: rewrite attempts
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     retriesUsed = attempt;
 
-    let aiText = "";
     try {
       const prompt = buildPrompt(text, mode, attempt);
-      aiText = await generateText(prompt);
-    } catch {
+      const aiText = await callOpenAI(prompt);
+      const cleaned = cleanAIOutput(aiText);
+
+      if (cleaned) {
+        bestOutput = cleaned;
+        break;
+      }
+    } catch (err) {
       continue;
     }
-
-    if (!aiText) continue;
-
-    let rewritten = cleanAIOutput(aiText);
-    rewritten = humanizeDeterministic(rewritten);
-    if (!rewritten) continue;
-
-    // STEP 5: post-rewrite analysis
-    const afterInsights = analyzeInsights(rewritten);
-    const afterAI = await detectAI(rewritten);
-
-    const candidate = {
-      text: rewritten,
-      aiScore: afterAI,
-      insights: afterInsights
-    };
-
-    // STEP 6: pick best candidate
-    if (!bestCandidate || candidate.aiScore < bestCandidate.aiScore) {
-      bestCandidate = candidate;
-    }
-
-    // stop early if good enough
-    if (candidate.aiScore < AI_THRESHOLD) break;
   }
 
-  // STEP 7: fallback
-  if (!bestCandidate) {
-    return {
-      status: "partial",
-      output: humanizeDeterministic(text),
-      retriesUsed,
-      fallback: true
-    };
-  }
+  // AFTER METRICS
+  const afterInsights = analyzeInsights(bestOutput);
+  const afterAI = await detectAI(bestOutput);
 
-  // STEP 8: success response
+  const humanizationScore = calculateHumanizationScore(beforeAI, afterAI);
+
   return {
     status: "success",
     mode,
     input: text,
-    output: bestCandidate.text,
+    output: bestOutput,
     retriesUsed,
+    humanizationScore,
+    improvementSummary: buildSummary(humanizationScore),
+    comparison: buildComparison(beforeAI, afterAI),
     aiDetection: {
       before: beforeAI,
-      after: bestCandidate.aiScore
+      after: afterAI,
     },
     insights: {
       before: beforeInsights,
-      after: bestCandidate.insights
-    }
+      after: afterInsights,
+    },
   };
 }
 
