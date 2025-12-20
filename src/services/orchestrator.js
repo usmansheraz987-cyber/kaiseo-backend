@@ -105,18 +105,25 @@ async function runParaphraser({ text, mode = "human" }) {
         temperature: 0.7
       });
 
-      // normalize aiClient response
-      if (typeof response === "string") {
-        aiText = response;
-      } else if (response && typeof response === "object") {
-        aiText =
-          response.text ||
-          response.content ||
-          response.output ||
-          response.result ||
-          response.message ||
-          "";
-      }
+// normalize aiClient response (FINAL)
+if (typeof response === "string") {
+  aiText = response;
+} 
+else if (response?.choices?.[0]?.message?.content) {
+  aiText = response.choices[0].message.content;
+}
+else if (response?.data?.choices?.[0]?.message?.content) {
+  aiText = response.data.choices[0].message.content;
+}
+else if (response?.text) {
+  aiText = response.text;
+}
+else if (response?.content) {
+  aiText = response.content;
+}
+else {
+  aiText = "";
+}
 
     } catch (err) {
       continue;
