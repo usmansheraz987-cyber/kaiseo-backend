@@ -1,23 +1,42 @@
-const axios = require("axios");
+const { Configuration, OpenAIApi } = require("openai");
 
 const OPENAI_KEY = process.env.OPENAI_API_KEY || "";
 let openaiClient = null;
 
-try {
-  if (OPENAI_KEY) {
-    const { Configuration, OpenAIApi } = require("openai");
-    const configuration = new Configuration({ apiKey: OPENAI_KEY });
-    openaiClient = new OpenAIApi(configuration);
-  }
-} catch (e) {
-  openaiClient = null;
+if (OPENAI_KEY) {
+  const configuration = new Configuration({ apiKey: OPENAI_KEY });
+  openaiClient = new OpenAIApi(configuration);
 }
 
 function safeArray(arr) {
   return Array.isArray(arr) ? arr : [];
 }
 
-async function callOpenAIChat(prompt) {
+/**
+ * TEXT GENERATION (for paraphraser, humanizer, etc.)
+ */
+async function generateText(prompt, options = {}) {
+  if (!openaiClient) {
+    throw new Error("OpenAI client not available");
+  }
+
+  const resp = await openaiClient.createChatCompletion({
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: "You are a professional human editor." },
+      { role: "user", content: prompt }
+    ],
+    temperature: options.temperature ?? 0.7,
+    max_tokens: options.maxTokens ?? 800
+  });
+
+  return resp.data.choices[0].message.content;
+}
+
+/**
+ * JSON GENERATION (used by SEO tools)
+ */
+async function generateJson(prompt) {
   if (!openaiClient) {
     throw new Error("OpenAI client not available");
   }
@@ -35,11 +54,9 @@ async function callOpenAIChat(prompt) {
   return resp.data.choices[0].message.content;
 }
 
-async function generateJson(prompt) {
-  return callOpenAIChat(prompt);
-}
-
-// Existing SEO Content Improver logic stays untouched
+/**
+ * Existing SEO Content Improver logic (unchanged)
+ */
 async function generateSeoInsights({
   title,
   metaDescription,
@@ -71,7 +88,7 @@ async function generateSeoInsights({
   if (!openaiClient) return minimal;
 
   try {
-    const aiText = await callOpenAIChat("Generate SEO insights as JSON.");
+    const aiText = await generateJson("Generate SEO insights as JSON.");
     return JSON.parse(aiText);
   } catch {
     return minimal;
@@ -79,6 +96,7 @@ async function generateSeoInsights({
 }
 
 module.exports = {
-  generateSeoInsights,
-  generateJson
+  generateText,
+  generateJson,
+  generateSeoInsights
 };

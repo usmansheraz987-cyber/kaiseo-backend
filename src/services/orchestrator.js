@@ -1,29 +1,19 @@
-// src/services/orchestrator.js
-
-const { generateJson } = require("../../utils/aiClient");
+const { generateText } = require("../../utils/aiClient");
 const analyzeInsights = require("../../utils/aiInsightsEngine");
 const detectAI = require("../../utils/aiContentDetector");
 
-// ===============================
-// CONFIG
-// ===============================
 const MAX_TEXT_LENGTH = 5000;
 const MAX_RETRIES = 2;
 const AI_THRESHOLD = 55;
 
-// ===============================
-// HELPERS
-// ===============================
 function isTextValid(text) {
-  if (!text) return false;
-  if (typeof text !== "string") return false;
+  if (!text || typeof text !== "string") return false;
   if (text.trim().length < 20) return false;
   if (text.length > MAX_TEXT_LENGTH) return false;
   return true;
 }
 
 function cleanAIOutput(text) {
-  if (!text) return "";
   return text.replace(/\n+/g, " ").trim();
 }
 
@@ -34,47 +24,28 @@ function humanizeDeterministic(text) {
     .trim();
 }
 
-// ===============================
-// PROMPT
-// ===============================
 function buildPrompt(text, mode, retry) {
   let rules = `
-You are a professional human editor.
-
-Rules:
-- Keep meaning identical
-- Rewrite naturally
-- Do not explain anything
-- Return ONLY the rewritten text
+Rewrite the text naturally.
+Keep the meaning identical.
+Do not explain anything.
+Return ONLY the rewritten text.
 `;
 
-  if (mode === "anti-ai" || retry > 0) {
+  if (retry > 0 || mode === "anti-ai") {
     rules += `
-- Avoid predictable phrasing
-- Vary sentence length
-- Sound human
-`;
-  }
-
-  if (mode === "seo") {
-    rules += `
-- Improve clarity for SEO
-- Do NOT keyword stuff
+Avoid predictable phrasing.
+Vary sentence length.
+Sound human.
 `;
   }
 
   return `${rules}\n\nText:\n${text}`;
 }
 
-// ===============================
-// ORCHESTRATOR
-// ===============================
 async function runParaphraser({ text, mode = "human" }) {
   if (!isTextValid(text)) {
-    return {
-      status: "error",
-      message: "Invalid or too short text"
-    };
+    return { status: "error", message: "Invalid text" };
   }
 
   const beforeInsights = analyzeInsights(text);
@@ -89,7 +60,7 @@ async function runParaphraser({ text, mode = "human" }) {
     let aiText = "";
     try {
       const prompt = buildPrompt(text, mode, attempt);
-      aiText = await generateJson(prompt);
+      aiText = await generateText(prompt);
     } catch {
       continue;
     }
@@ -126,7 +97,6 @@ async function runParaphraser({ text, mode = "human" }) {
 
   return {
     status: "success",
-    mode,
     input: text,
     output: best.text,
     retriesUsed,
