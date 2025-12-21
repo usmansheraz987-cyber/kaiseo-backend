@@ -4,7 +4,7 @@ const validate = require("./validator");
 const score = require("./scorer");
 const modes = require("./modes");
 
-const { generateText } = require("../../../utils/aiClient");
+const analyzeInsights = require("../../../utils/aiInsightsEngine");
 
 
 const MAX_RETRIES = 3;
