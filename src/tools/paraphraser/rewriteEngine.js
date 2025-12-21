@@ -1,4 +1,5 @@
-const { generateText } = require("../../utils/aiClient");
+const { generateText } = require("../../../utils/aiClient");
+
 
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
