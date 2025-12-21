@@ -23,6 +23,7 @@ async function runParaphraser({ text, mode = "human" }) {
     attempts++;
 
 const modeConfig = modes[mode] || modes.human;
+const prompt = buildPrompt({ text, mode });
 
 output = await rewrite({
   prompt,
