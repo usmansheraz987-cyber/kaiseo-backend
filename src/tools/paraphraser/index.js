@@ -4,7 +4,7 @@ const validate = require("./validator");
 const score = require("./scorer");
 const modes = require("./modes");
 
-const { analyzeInsights } = require("../../utils/aiInsightsEngine");
+const { analyzeInsights } = require("../../../utils/aiInsightsEngine");
 
 const MAX_RETRIES = 3;
 
@@ -21,11 +21,12 @@ async function runParaphraser({ text, mode = "human" }) {
   while (attempts < MAX_RETRIES) {
     attempts++;
 
-    const prompt = buildPrompt({ text, mode });
-    output = await rewrite({
-      prompt,
-      temperatureRange: modes[mode]?.temperatureRange || [0.8, 1.1]
-    });
+const modeConfig = modes[mode] || modes.human;
+
+output = await rewrite({
+  prompt,
+  temperatureRange: modeConfig.temperatureRange
+});
 
     const insightsAfter = analyzeInsights(output);
     validation = validate({
