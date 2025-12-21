@@ -1,7 +1,7 @@
 // src/services/orchestrator.js
 
-const { generateText } = require("../utils/aiClient");
-const { analyzeInsights } = require("../utils/insightsEngine");
+const { generateText } = require("../../utils/aiClient");
+const { analyzeInsights } = require("../../utils/insightsEngine");
 
 const MAX_RETRIES = 3;
 
