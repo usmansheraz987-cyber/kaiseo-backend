@@ -1,177 +1,124 @@
-// src/services/orchestrator.js
+// FINAL ORCHESTRATOR — FORCE REWRITE + VARIATION
 
-const { callOpenAI } = require("../../utils/aiClient");
-const detectAI = require("../../utils/aiContentDetector");
-const analyzeInsights = require("../../utils/aiInsightsEngine");
+const { callOpenAI } = require("../utils/aiClient");
+const { analyzeInsights } = require("../utils/insightsEngine");
+const { detectAI } = require("../utils/aiContentDetector");
 
-// ================= CONFIG =================
-const MAX_TEXT_LENGTH = 5000;
-const MAX_RETRIES = 2;
+const MAX_RETRIES = 3;
 
-// ================= HELPERS =================
-function isTextValid(text) {
-  if (!text || typeof text !== "string") return false;
-  if (text.trim().length < 10) return false;
-  if (text.length > MAX_TEXT_LENGTH) return false;
-  return true;
+// ---------- HELPERS ----------
+
+function isValidText(text) {
+  return typeof text === "string" && text.trim().length >= 2;
 }
 
-function cleanAIOutput(text) {
-  if (!text) return "";
-  return text
-    .replace(/^Rewritten:\s*/i, "")
-    .replace(/^Output:\s*/i, "")
-    .trim();
+function randomPick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
-function countSentences(text) {
-  return text.split(/[.!?]+/).filter(Boolean).length;
+function randomTemperature() {
+  return Number((0.75 + Math.random() * 0.35).toFixed(2)); // 0.75 → 1.1
 }
 
-// ================= FORCE REWRITE =================
-function shouldForceRewrite({ mode, text, beforeAI }) {
-  if (mode !== "anti-ai") return false;
-  if (!beforeAI || typeof beforeAI.aiProbability !== "number") return false;
-  return countSentences(text) === 1 && beforeAI.aiProbability >= 40;
-}
+function buildRewritePrompt(text, mode) {
+  const rewriteStyles = [
+    "Rewrite using a different sentence structure and phrasing.",
+    "Rewrite as a natural human would explain it casually.",
+    "Rewrite by reordering ideas and changing tone.",
+    "Rewrite with different wording, flow, and rhythm.",
+    "Rewrite using simpler phrasing but new structure.",
+    "Rewrite creatively while preserving meaning."
+  ];
 
-// ================= HARD FALLBACK =================
-function hardRewriteSingleSentence(text) {
-  return text
-    .replace(/^SEO helps/i, "Search engine optimization helps")
-    .replace(/rank higher on search engines/i, "achieve better positions in search results");
-}
-
-// ================= PROMPT BUILDER =================
-function buildPrompt(text, mode, forceRewrite) {
-  const base = `Rewrite the following text while preserving meaning:\n\n"${text}"\n`;
-
-  if (forceRewrite) {
-    return `
-You MUST rewrite this sentence.
-The rewritten text must be structurally different.
-Do NOT reuse the same sentence pattern.
-Change word order and phrasing.
-Return ONLY the rewritten text.
-
-${base}
+  const forceRules = `
+RULES (MANDATORY):
+- You MUST rewrite the text.
+- Do NOT reuse sentence structure.
+- Do NOT keep the same phrasing.
+- Change word order, clauses, and flow.
+- Output ONLY the rewritten text.
 `;
-  }
 
-  switch (mode) {
-    case "anti-ai":
-      return `
-Rewrite to avoid AI-detection patterns.
-Increase variation.
-Change sentence structure.
-Avoid generic phrasing.
+  return `
+${randomPick(rewriteStyles)}
 
-${base}
+${forceRules}
+
+TEXT:
+"${text}"
 `;
-    case "seo":
-      return `
-Rewrite for SEO clarity.
-Natural keywords.
-No stuffing.
-
-${base}
-`;
-    case "formal":
-      return `
-Rewrite in a professional, formal tone.
-No contractions.
-
-${base}
-`;
-    case "casual":
-      return `
-Rewrite in a relaxed, conversational tone.
-
-${base}
-`;
-    default:
-      return `
-Rewrite naturally like a human writer.
-
-${base}
-`;
-  }
 }
 
-// ================= COMPARISON =================
-function buildComparison(beforeAI, afterAI, beforeText, afterText) {
-  return {
-    beforeText,
-    afterText,
-    aiProbabilityDrop: beforeAI.aiProbability - afterAI.aiProbability,
-    verdictChange: `${beforeAI.verdict} → ${afterAI.verdict}`,
-    summary:
-      beforeAI.aiProbability > afterAI.aiProbability
-        ? "AI probability reduced and structure improved."
-        : "Structure changed; AI probability unchanged (expected for short text).",
-  };
-}
+// ---------- MAIN ----------
 
-// ================= MAIN =================
 async function runParaphraser({ text, mode = "human" }) {
-  if (!isTextValid(text)) throw new Error("Invalid input text");
+  if (!isValidText(text)) {
+    throw new Error("Invalid input text");
+  }
 
+  // Always analyze original
   const beforeAI = await detectAI(text);
   const beforeInsights = analyzeInsights(text);
 
-  const forceRewrite = shouldForceRewrite({ mode, text, beforeAI });
+  let output = text;
+  let retries = 0;
 
-  let rewritten = null;
-  let retriesUsed = 0;
+  // 🔥 KEY RULE: anti-ai ALWAYS rewrites
+  const mustRewrite = mode === "anti-ai";
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    retriesUsed = attempt;
-    try {
-      const prompt = buildPrompt(text, mode, forceRewrite);
-      const aiText = await callOpenAI(prompt);
-      rewritten = cleanAIOutput(aiText);
-      if (rewritten && rewritten !== text) break;
-    } catch {
-      continue;
+  if (mustRewrite) {
+    while (retries < MAX_RETRIES) {
+      retries++;
+
+      const prompt = buildRewritePrompt(text, mode);
+
+      const candidate = await callOpenAI({
+        prompt,
+        temperature: randomTemperature()
+      });
+
+      if (candidate && candidate.trim() && candidate.trim() !== text.trim()) {
+        output = candidate.trim();
+        break;
+      }
     }
   }
 
-  if (forceRewrite && (!rewritten || rewritten === text)) {
-    rewritten = hardRewriteSingleSentence(text);
-  }
-
-  const finalText = rewritten || text;
-
-  const afterAI = await detectAI(finalText);
-  const afterInsights = analyzeInsights(finalText);
+  // Analyze rewritten text
+  const afterAI = await detectAI(output);
+  const afterInsights = analyzeInsights(output);
 
   return {
     status: "success",
     mode,
     input: text,
-    output: finalText,
-    retriesUsed,
-    forcedRewrite: forceRewrite,
+    output,
+    retriesUsed: retries,
+    forcedRewrite: mustRewrite,
 
-    comparison: buildComparison(
-      beforeAI,
-      afterAI,
-      text,
-      finalText
-    ),
+    comparison: {
+      beforeText: text,
+      afterText: output,
+      aiProbabilityDrop: beforeAI.aiProbability - afterAI.aiProbability,
+      verdictChange: `${beforeAI.verdict} → ${afterAI.verdict}`,
+      summary:
+        mustRewrite
+          ? "Forced rewrite applied. Structural variation enforced."
+          : "Standard rewrite applied."
+    },
 
     aiDetection: {
       before: beforeAI,
-      after: afterAI,
+      after: afterAI
     },
 
     insights: {
       before: beforeInsights,
-      after: afterInsights,
-    },
+      after: afterInsights
+    }
   };
 }
 
 module.exports = {
-  runParaphraser,
+  runParaphraser
 };
