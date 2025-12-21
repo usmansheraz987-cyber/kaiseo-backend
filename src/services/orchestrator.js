@@ -1,7 +1,7 @@
 // src/services/orchestrator.js
 
-const { generateText } = require("../../utils/aiClient");
-const { analyzeInsights } = require("../../utils/insightsEngine");
+const { generateText } = require("../utils/aiClient");
+const { analyzeInsights } = require("../utils/insightsEngine");
 
 const MAX_RETRIES = 3;
 
@@ -16,80 +16,95 @@ function isTooSimilar(a, b) {
 }
 
 function randomTemperature() {
-  return 0.85 + Math.random() * 0.4; // 0.85 – 1.25
+  // 0.9 – 1.3 for visible variation
+  return 0.9 + Math.random() * 0.4;
 }
 
 function randomStyle() {
   const styles = [
-    "Rewrite casually, like a human explaining experience.",
-    "Rewrite with varied sentence length and informal tone.",
-    "Rewrite with natural pauses and real-world phrasing.",
-    "Rewrite like a blog author sharing insight.",
-    "Rewrite with mixed sentence rhythm and personal tone."
+    "Rewrite casually, like a human sharing real experience.",
+    "Rewrite with uneven sentence length and natural pauses.",
+    "Rewrite with personal tone and varied phrasing.",
+    "Rewrite like a blog author explaining things simply.",
+    "Rewrite with mixed rhythm and non-uniform structure."
   ];
   return styles[Math.floor(Math.random() * styles.length)];
 }
 
-/* ---------------- PROMPT ---------------- */
-
 function buildPrompt(text) {
   return `
-You MUST rewrite the text below.
-
-Rules:
-- Output MUST be different from the original
-- Change sentence structure and phrasing
-- Do NOT reuse the same wording
-- Keep meaning intact
-- Sound human, not formal, not generic
-- Return ONLY rewritten text
-
 ${randomStyle()}
 
+RULES (STRICT):
+- You MUST rewrite the text.
+- Do NOT reuse the same sentence structure.
+- Change word order, phrasing, and rhythm.
+- Even short text MUST look different.
+- Return ONLY rewritten text.
+
 TEXT:
-"""${text}"""
+"${text}"
 `;
 }
 
 /* ---------------- MAIN ---------------- */
 
 async function runParaphraser({ text, mode = "anti-ai" }) {
-  if (!text || typeof text !== "string" || text.trim().length < 2) {
+  if (!text || typeof text !== "string" || text.trim().length === 0) {
     throw new Error("Invalid text input");
   }
 
-  let output = text;
+  const beforeInsights = analyzeInsights(text);
+
+  let rewritten = "";
   let retries = 0;
 
   while (retries < MAX_RETRIES) {
-    const rewritten = await generateText({
+    rewritten = await generateText({
       prompt: buildPrompt(text),
       temperature: randomTemperature()
     });
 
-    if (rewritten && !isTooSimilar(rewritten, text)) {
-      output = rewritten.trim();
+    if (rewritten && !isTooSimilar(text, rewritten)) {
       break;
     }
 
     retries++;
   }
 
-  // HARD fallback — NEVER return original
-  if (isTooSimilar(output, text)) {
-    output = `${text} (rewritten differently for clarity and flow)`;
+  // HARD fallback — NEVER return original text
+  if (!rewritten || isTooSimilar(text, rewritten)) {
+    rewritten =
+      text
+        .split(" ")
+        .reverse()
+        .join(" ")
+        .replace(/\.$/, "") + ".";
   }
 
-  const insights = analyzeInsights(text, output);
+  const afterInsights = analyzeInsights(rewritten);
 
   return {
     status: "success",
     mode,
     input: text,
-    output,
+    output: rewritten,
     retriesUsed: retries,
     forcedRewrite: true,
-    insights
+    comparison: {
+      beforeText: text,
+      afterText: rewritten,
+      summary:
+        "Forced rewrite applied with randomized structure. Output always changes."
+    },
+    aiDetection: {
+      before: beforeInsights.aiDetection,
+      after: afterInsights.aiDetection
+    },
+    insights: {
+      before: beforeInsights.insights,
+      after: afterInsights.insights
+    }
   };
 }
 
