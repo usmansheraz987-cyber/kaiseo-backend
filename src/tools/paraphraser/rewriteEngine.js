@@ -1,6 +1,5 @@
 const { generateText } = require("../../../utils/aiClient");
 
-
 function randomBetween(min, max) {
   return min + Math.random() * (max - min);
 }
@@ -11,8 +10,7 @@ module.exports = async function rewrite({ prompt, temperatureRange }) {
     temperatureRange[1]
   );
 
-  return generateText({
-    prompt,
+  return generateText(prompt, {
     temperature
   });
 };
