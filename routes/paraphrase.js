@@ -15,13 +15,16 @@ router.post("/", async (req, res) => {
     }
 
     return res.json(result);
-  } catch (err) {
-    console.error("Paraphrase route error:", err);
-    return res.status(500).json({
-      status: "error",
-      message: "Internal server error"
-    });
-  }
+  }catch (err) {
+  console.error("Paraphrase route error:", err);
+
+  return res.status(500).json({
+    status: "error",
+    message: err.message,
+    stack: err.stack
+  });
+}
+
 });
 
 module.exports = router;
