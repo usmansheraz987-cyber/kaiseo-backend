@@ -4,7 +4,7 @@ const validate = require("./validator");
 const score = require("./scorer");
 const modes = require("./modes");
 
-const analyzeInsights = require("../../utils/aiInsightsEngine");
+const analyzeInsights = require("../../../utils/aiInsightsEngine");
 const rewriteSentence = require("./sentenceRewriter");
 
 const MAX_RETRIES = 3;
