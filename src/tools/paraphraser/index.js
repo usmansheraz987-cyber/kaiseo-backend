@@ -41,6 +41,7 @@ if (mode === "sentence-fix") {
       }
     }
   }
+}
 
 // Build final text with fixes applied
 let afterText = text;
