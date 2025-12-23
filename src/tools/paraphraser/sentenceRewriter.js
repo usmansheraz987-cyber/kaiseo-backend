@@ -15,7 +15,7 @@ Rewrite the following sentence to sound more human and specific.
 Rules:
 - Keep the original meaning
 - Avoid generic phrases
-- Add light realism or context
+-Add clarity without introducing specific examples or industries unless already implied
 - Do NOT add extra claims
 
 Sentence:
