@@ -4,10 +4,8 @@ const validate = require("./validator");
 const score = require("./scorer");
 const modes = require("./modes");
 
-const analyzeInsights = require("../../../utils/aiInsightsEngine");
+const analyzeInsights = require("../../utils/aiInsightsEngine");
 const rewriteSentence = require("./sentenceRewriter");
-
-
 
 const MAX_RETRIES = 3;
 
@@ -15,55 +13,56 @@ async function runParaphraser({ text, mode = "human" }) {
   if (!text || typeof text !== "string") {
     throw new Error("Invalid text");
   }
-  // ===============================
-// SENTENCE FIX MODE (PREMIUM)
-// ===============================
-if (mode === "sentence-fix") {
-  const insights = analyzeInsights(text);
-  const fixedSentences = [];
 
-  for (const s of insights.sentences || []) {
-    if (!s.flags) continue;
+  // ==================================================
+  // SENTENCE FIX MODE (PREMIUM – EARLY EXIT)
+  // ==================================================
+  if (mode === "sentence-fix") {
+    const insights = analyzeInsights(text);
+    let fixedSentences = [];
+    let afterText = text;
 
-    if (s.flags.includes("generic") || s.flags.includes("vague")) {
-      const fixed = await rewriteSentence({
-        sentence: s.text,
-        hint: s.hint,
-        mode: "human"
-      });
+    for (const s of insights.sentences || []) {
+      if (!s.flags) continue;
 
-      if (fixed && fixed !== s.text) {
-        fixedSentences.push({
-          index: s.index,
-          original: s.text,
-          fixed
+      if (s.flags.includes("generic") || s.flags.includes("vague")) {
+        const fixed = await rewriteSentence({
+          sentence: s.text,
+          hint: s.hint,
+          mode: "human"
         });
+
+        if (fixed && fixed !== s.text) {
+          fixedSentences.push({
+            index: s.index,
+            original: s.text,
+            fixed
+          });
+        }
       }
     }
+
+    // Build AFTER text (replace only fixed sentences)
+    for (const f of fixedSentences) {
+      afterText = afterText.replace(f.original, f.fixed);
+    }
+
+    return {
+      status: "success",
+      mode: "sentence-fix",
+      beforeText: text,
+      afterText,
+      fixedSentences,
+      summary: {
+        weakSentences: fixedSentences.length,
+        fixed: fixedSentences.length
+      }
+    };
   }
-}
 
-// Build final text with fixes applied
-let afterText = text;
-
-for (const f of fixedSentences) {
-  afterText = afterText.replace(f.original, f.fixed);
-}
-
-return {
-  status: "success",
-  mode: "sentence-fix",
-  beforeText: text,
-  afterText,
-  fixedSentences,
-  summary: {
-    weakSentences: fixedSentences.length,
-    fixed: fixedSentences.length
-  }
-};
-
-
-
+  // ==================================================
+  // NORMAL PARAPHRASER FLOW (ALL OTHER MODES)
+  // ==================================================
   const insightsBefore = analyzeInsights(text);
   let output = "";
   let attempts = 0;
@@ -72,36 +71,15 @@ return {
   while (attempts < MAX_RETRIES) {
     attempts++;
 
-const modeConfig = modes[mode] || modes.human;
-const prompt = buildPrompt({ text, mode });
+    const modeConfig = modes[mode] || modes.human;
+    const prompt = buildPrompt({ text, mode });
 
-output = await rewrite({
-  prompt,
-  temperatureRange: modeConfig.temperatureRange
-});
-
-    const insightsAfter = analyzeInsights(output);
-    const sentenceSuggestions = [];
-
-for (const s of insightsBefore.sentences || []) {
-  if (!s.flags || s.flags.length === 0) continue;
-
-  if (s.flags.includes("generic") || s.flags.includes("vague")) {
-    const suggestion = await rewriteSentence({
-      sentence: s.text,
-      hint: s.hint,
-      mode
+    output = await rewrite({
+      prompt,
+      temperatureRange: modeConfig.temperatureRange
     });
 
-    if (suggestion && suggestion !== s.text) {
-      sentenceSuggestions.push({
-        index: s.index,
-        original: s.text,
-        suggestion
-      });
-    }
-  }
-}
+    const insightsAfter = analyzeInsights(output);
 
     validation = validate({
       original: text,
@@ -123,7 +101,6 @@ for (const s of insightsBefore.sentences || []) {
           before: insightsBefore,
           after: insightsAfter
         },
-        sentenceSuggestions,
         score: scoring
       };
     }
