@@ -15,6 +15,45 @@ async function runParaphraser({ text, mode = "human" }) {
   if (!text || typeof text !== "string") {
     throw new Error("Invalid text");
   }
+  // ===============================
+// SENTENCE FIX MODE (PREMIUM)
+// ===============================
+if (mode === "sentence-fix") {
+  const insights = analyzeInsights(text);
+  const fixedSentences = [];
+
+  for (const s of insights.sentences || []) {
+    if (!s.flags) continue;
+
+    if (s.flags.includes("generic") || s.flags.includes("vague")) {
+      const fixed = await rewriteSentence({
+        sentence: s.text,
+        hint: s.hint,
+        mode: "human"
+      });
+
+      if (fixed && fixed !== s.text) {
+        fixedSentences.push({
+          index: s.index,
+          original: s.text,
+          fixed
+        });
+      }
+    }
+  }
+
+  return {
+    status: "success",
+    mode: "sentence-fix",
+    input: text,
+    fixedSentences,
+    summary: {
+      weakSentences: fixedSentences.length,
+      fixed: fixedSentences.length
+    }
+  };
+}
+
 
   const insightsBefore = analyzeInsights(text);
   let output = "";
