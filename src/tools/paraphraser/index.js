@@ -42,17 +42,25 @@ if (mode === "sentence-fix") {
     }
   }
 
-  return {
-    status: "success",
-    mode: "sentence-fix",
-    input: text,
-    fixedSentences,
-    summary: {
-      weakSentences: fixedSentences.length,
-      fixed: fixedSentences.length
-    }
-  };
+// Build final text with fixes applied
+let afterText = text;
+
+for (const f of fixedSentences) {
+  afterText = afterText.replace(f.original, f.fixed);
 }
+
+return {
+  status: "success",
+  mode: "sentence-fix",
+  beforeText: text,
+  afterText,
+  fixedSentences,
+  summary: {
+    weakSentences: fixedSentences.length,
+    fixed: fixedSentences.length
+  }
+};
+
 
 
   const insightsBefore = analyzeInsights(text);
