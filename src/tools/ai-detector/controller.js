@@ -1,190 +1,148 @@
-// src/services/tools/ai-detector/controller.js
+const engine = require("./engine");
+const insightsEngine = require("./insights");
 
-const {
-  detectAIEngine,
-  compareAIEngine,
-  insightEngine
-} = require("./engine");
+/* ---------------------------
+   Shared helpers
+---------------------------- */
 
-/* -----------------------------
-   Helpers
------------------------------ */
-
-function wordCount(text) {
-  return text.trim().split(/\s+/).length;
+function normalizeProbability(value) {
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
-function safeText(text) {
-  return typeof text === "string" && text.trim().length > 0;
+function confidenceFromLength(text) {
+  const words = text.trim().split(/\s+/).length;
+  if (words < 40) return "low";
+  if (words < 80) return "medium";
+  return "high";
 }
 
-function confidenceFromProbability(p) {
-  if (p >= 75) return "high";
-  if (p >= 45) return "medium";
-  return "low";
+function verdictFromProbability(prob) {
+  if (prob >= 70) return "ai";
+  if (prob >= 40) return "mixed";
+  return "human";
 }
 
-/* -----------------------------
+/* ---------------------------
    DETECT MODE
------------------------------ */
+---------------------------- */
+
 async function detect(req, res) {
   try {
     const { text } = req.body;
 
-    if (!safeText(text)) {
+    if (!text || text.trim().length < 10) {
       return res.status(400).json({
-        mode: "ai-content-detector",
-        error: "Text is required"
+        error: "Text too short for analysis"
       });
     }
 
-    if (wordCount(text) < 50) {
-      return res.json({
-        mode: "ai-content-detector",
-        verdict: "uncertain",
-        aiProbability: 0,
-        confidence: "low",
-        explanation: "Text too short for reliable AI detection"
-      });
-    }
+    const analysis = engine.analyze(text);
 
-    const result = detectAIEngine(text);
+    const aiProbability = normalizeProbability(analysis.aiProbability);
+    const confidence = confidenceFromLength(text);
+    const verdict = verdictFromProbability(aiProbability);
 
     return res.json({
       mode: "ai-content-detector",
-      verdict: result.verdict,
-      aiProbability: result.aiProbability,
-      confidence: confidenceFromProbability(result.aiProbability),
-      signals: result.signals,
-      explanation: result.explanation
+      verdict,
+      aiProbability,
+      confidence,
+      signals: analysis.signals || {},
+      explanation:
+        verdict === "ai"
+          ? "Text shows strong AI-like structure and predictability."
+          : verdict === "mixed"
+          ? "Some AI-like structure detected, but human phrasing is present."
+          : "Text appears naturally written with human variation."
     });
-
   } catch (err) {
-    console.error("AI Detect Error:", err);
-    return res.status(500).json({
-      mode: "ai-content-detector",
-      error: "internal error"
-    });
+    console.error("Detect error:", err);
+    res.status(500).json({ error: "internal error" });
   }
 }
 
-/* -----------------------------
+/* ---------------------------
    COMPARE MODE
------------------------------ */
+---------------------------- */
+
 async function compare(req, res) {
   try {
     const { original, rewritten } = req.body;
 
-    if (!safeText(original) || !safeText(rewritten)) {
+    if (!original || !rewritten) {
       return res.status(400).json({
-        mode: "ai-content-detector-compare",
         error: "Both original and rewritten text are required"
       });
     }
 
-    if (wordCount(original) < 30 || wordCount(rewritten) < 30) {
-      return res.json({
-        mode: "ai-content-detector-compare",
-        confidence: "low",
-        before: null,
-        after: null,
-        improvementScore: 0,
-        summary: "Text too short for meaningful comparison"
-      });
+    const before = engine.analyze(original);
+    const after = engine.analyze(rewritten);
+
+    const beforeProb = normalizeProbability(before.aiProbability);
+    const afterProb = normalizeProbability(after.aiProbability);
+
+    const improvementScore = normalizeProbability(beforeProb - afterProb);
+
+    let summary;
+    if (improvementScore >= 15) {
+      summary = "Clear humanization improvement detected.";
+    } else if (improvementScore >= 5) {
+      summary = "Minor improvement detected.";
+    } else {
+      summary = "No meaningful structural change detected.";
     }
-
-    const result = compareAIEngine(original, rewritten);
-
-    const improvement =
-      result.before.aiProbability - result.after.aiProbability;
 
     return res.json({
       mode: "ai-content-detector-compare",
-      confidence: confidenceFromProbability(result.after.aiProbability),
-      before: result.before,
-      after: result.after,
-      improvementScore: Math.max(improvement, 0),
-      summary:
-        improvement > 0
-          ? "Human-likeness improved after rewriting"
-          : "No meaningful structural improvement detected"
+      before: beforeProb,
+      after: afterProb,
+      improvementScore,
+      summary
     });
-
   } catch (err) {
-    console.error("AI Compare Error:", err);
-    return res.status(500).json({
-      mode: "ai-content-detector-compare",
-      error: "internal error"
-    });
+    console.error("Compare error:", err);
+    res.status(500).json({ error: "internal error" });
   }
 }
 
-/* -----------------------------
+/* ---------------------------
    INSIGHTS MODE
------------------------------ */
+---------------------------- */
+
 async function insights(req, res) {
   try {
     const { text } = req.body;
 
-    if (!safeText(text)) {
+    if (!text || text.trim().length < 40) {
       return res.status(400).json({
-        mode: "ai-content-detector-insights",
-        error: "Text is required"
+        error: "Text too short for insights analysis"
       });
     }
 
-    if (wordCount(text) < 40) {
-      return res.json({
-        mode: "ai-content-detector-insights",
-        sentences: [],
-        overallSuggestions: [
-          "Increase text length for deeper analysis",
-          "Add personal experience or examples",
-          "Avoid overly generic statements"
-        ]
-      });
-    }
-
-    const result = insightEngine(text);
-
-    // 🔑 CRITICAL FIX: never return empty insights
-    if (!result.sentences || result.sentences.length === 0) {
-      return res.json({
-        mode: "ai-content-detector-insights",
-        sentences: [],
-        overallSuggestions: [
-          "Vary sentence length",
-          "Reduce generic definitions",
-          "Add personal context",
-          "Include real-world outcomes or data"
-        ]
-      });
-    }
+    const result = insightsEngine.analyze(text);
 
     return res.json({
       mode: "ai-content-detector-insights",
-      sentences: result.sentences,
-      overallSuggestions: result.overallSuggestions.length
-        ? result.overallSuggestions
-        : [
-            "Improve sentence flow",
-            "Reduce repetitive phrasing",
-            "Add human-style transitions"
-          ]
+      sentences: result.sentences || [],
+      overallSuggestions:
+        result.overallSuggestions && result.overallSuggestions.length
+          ? result.overallSuggestions
+          : [
+              "Vary sentence length",
+              "Reduce generic explanations",
+              "Add personal or real-world context"
+            ]
     });
-
   } catch (err) {
-    console.error("AI Insights Error:", err);
-    return res.status(500).json({
-      mode: "ai-content-detector-insights",
-      error: "internal error"
-    });
+    console.error("Insights error:", err);
+    res.status(500).json({ error: "internal error" });
   }
 }
 
-/* -----------------------------
+/* ---------------------------
    EXPORTS
------------------------------ */
+---------------------------- */
+
 module.exports = {
   detect,
   compare,
