@@ -1,17 +1,29 @@
 module.exports = {
   human: {
-    description: "Natural, casual, mixed rhythm",
-    temperatureRange: [0.8, 1.1]
+    temperatureRange: [0.7, 1.0]
   },
 
   "anti-ai": {
-    description: "Break AI patterns aggressively",
-    temperatureRange: [0.95, 1.25]
+    temperatureRange: [0.9, 1.2]
+  },
+
+  formal: {
+    temperatureRange: [0.4, 0.6]
+  },
+
+  casual: {
+    temperatureRange: [0.9, 1.1]
+  },
+
+  academic: {
+    temperatureRange: [0.3, 0.5]
+  },
+
+  seo: {
+    temperatureRange: [0.6, 0.8]
   },
 
   shorten: {
-    description: "Reduce length without losing meaning",
-    temperatureRange: [0.6, 0.8],
-    targetReduction: 0.3
+    temperatureRange: [0.4, 0.6]
   }
 };

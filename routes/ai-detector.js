@@ -1,7 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const detectAI = require("../utils/aiContentDetector");
-const analyzeInsights = require("../utils/aiInsightsEngine");
+
+
+
+const {
+  detectAI,
+  compareAI,
+  analyzeInsights
+} = require("../src/services/tools/ai-detector");
+
 
 // SINGLE TEXT DETECTION
 router.post("/", async (req, res) => {
