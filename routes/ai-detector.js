@@ -7,7 +7,8 @@ const {
   detectAI,
   compareAI,
   analyzeInsights
-} = require("../services/tools/ai-detector");
+} = require("../services/tools/ai-detector/index.js");
+
 
 ////// SINGLE TEXT DETECTION
 router.post("/", async (req, res) => {
