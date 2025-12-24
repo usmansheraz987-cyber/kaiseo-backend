@@ -1,56 +1,113 @@
-// tools/ai-detector/controller.js
+// src/tools/ai-detector/controller.js
 
-const { validateText, getConfidence } = require("./validator");
-const { analyzeText } = require("./engine");
-const { scoreResult } = require("./scorer");
-const { analyzeInsights } = require("./insights");
+const engine = require("./engine");
+const validator = require("./validator");
+const scorer = require("./scorer");
+const insights = require("./insights");
 
+/**
+ * Single text AI detection
+ */
 async function detect(text) {
-  const cleanText = validateText(text);
+  // 1. Validate input
+  const error = validator.validateText(text);
+  if (error) {
+    return {
+      error: error,
+    };
+  }
 
-  const metrics = analyzeText(cleanText);
-  const confidence = getConfidence(metrics.wordCount);
+  // 2. Extract signals
+  const signals = engine.analyze(text);
 
-  return scoreResult(metrics, cleanText, confidence);
-}
-
-async function compare(original, rewritten) {
-  const before = await detect(original);
-  const after = await detect(rewritten);
-
-  const improvementScore = Math.max(
-    0,
-    before.aiProbability - after.aiProbability
-  );
+  // 3. Score content
+  const score = scorer.calculate(signals);
 
   return {
-    confidence:
-      before.confidence === "low" || after.confidence === "low"
-        ? "low"
-        : "medium",
-    before: {
-      aiProbability: before.aiProbability,
-      verdict: before.verdict
-    },
-    after: {
-      aiProbability: after.aiProbability,
-      verdict: after.verdict
-    },
-    improvementScore,
-    summary:
-      improvementScore > 0
-        ? "AI probability reduced after rewrite."
-        : "No structural change detected."
+    verdict: score.verdict,
+    aiProbability: score.aiProbability,
+    confidence: score.confidence,
+    signals,
+    explanation: score.explanation,
   };
 }
 
-function insights(text) {
-  const cleanText = validateText(text);
-  return analyzeInsights(cleanText);
+/**
+ * Compare original vs rewritten text
+ */
+async function compare(original, rewritten) {
+  // 1. Validate inputs
+  const originalError = validator.validateText(original);
+  const rewrittenError = validator.validateText(rewritten);
+
+  if (originalError || rewrittenError) {
+    return {
+      error: "Both original and rewritten text must be at least 50 words",
+    };
+  }
+
+  // 2. Run detection on both
+  const originalResult = await detect(original);
+  const rewrittenResult = await detect(rewritten);
+
+  // 3. Safety check (prevents 500 crash)
+  if (originalResult.error || rewrittenResult.error) {
+    return {
+      error: "Comparison failed due to invalid analysis",
+    };
+  }
+
+  // 4. Calculate improvements
+  const improvement = {
+    aiProbabilityChange:
+      originalResult.aiProbability - rewrittenResult.aiProbability,
+
+    sentenceVarianceChange:
+      rewrittenResult.signals.sentenceVariance -
+      originalResult.signals.sentenceVariance,
+
+    vocabularyRichnessChange:
+      rewrittenResult.signals.vocabularyRichness -
+      originalResult.signals.vocabularyRichness,
+  };
+
+  return {
+    mode: "ai-content-detector-compare",
+    original: {
+      aiProbability: originalResult.aiProbability,
+      verdict: originalResult.verdict,
+    },
+    rewritten: {
+      aiProbability: rewrittenResult.aiProbability,
+      verdict: rewrittenResult.verdict,
+    },
+    improvement,
+  };
+}
+
+/**
+ * Insight-only mode (no scoring)
+ */
+async function analyzeInsights(text) {
+  const error = validator.validateText(text);
+  if (error) {
+    return {
+      error: error,
+    };
+  }
+
+  const signals = engine.analyze(text);
+  const insightData = insights.generate(signals);
+
+  return {
+    mode: "ai-content-detector-insights",
+    sentences: insightData.sentences,
+    overallSuggestions: insightData.overallSuggestions,
+  };
 }
 
 module.exports = {
   detect,
   compare,
-  insights
+  insights: analyzeInsights,
 };
